@@ -5,12 +5,13 @@ from nonconformity_scores.euclidean_distance import EuclideanDistanceNonConformi
 
 
 class AverageOfWindow(AbstractAnomalyScore):
-    def __init__(self, publisher: EuclideanDistanceNonConformity, subscribers: list, window_length: int) -> None:
+    def __init__(self, publisher: EuclideanDistanceNonConformity, subscribers: list, save_path: str, initial_nonconformity_scores: np.ndarray, window_length: int) -> None:
         self.publisher = publisher
         self.subscribers = subscribers
         self.window_length = window_length
-        self.window = np.zeros((window_length))
-        self.running_mean = 0.0
+        self.save_path = save_path
+        self.window = initial_nonconformity_scores[-window_length:]
+        self.running_mean = np.mean(initial_nonconformity_scores[-window_length:])
 
     def update_parameters(self):
         to_add = self.publisher.nonconformity_score

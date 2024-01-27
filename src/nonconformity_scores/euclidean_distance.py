@@ -9,7 +9,7 @@ class EuclideanDistanceNonConformity(AbstractSubscriber):
         self.subscribers = subscribers
         self.publisher = publisher
 
-    def calc_nonconformity_score(self):
+    def calc_current_nonconformity_score(self):
         self.current_feature_vector = self.publisher.current_feature_vector
         self.nonconformity_score = np.linalg.norm(
             self.publisher.current_feature_vector - self.publisher.current_prediction)
@@ -18,6 +18,9 @@ class EuclideanDistanceNonConformity(AbstractSubscriber):
         self.subscribers.append(subscriber)
 
     def notify(self):
-        self.calc_nonconformity_score()
+        self.calc_current_nonconformity_score()
         for subscriber in self.subscribers:
             subscriber.notify()
+            
+def calc_nonconformity_score(feature_vectors: np.ndarray, predictions: np.ndarray):
+        return np.linalg.norm(feature_vectors - predictions)

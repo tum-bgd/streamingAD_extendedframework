@@ -43,3 +43,7 @@ class UniformReservoir(AbstractTrainingSetUpdateMethod):
     
     def get_window_length(self) -> int:
         self.reservoir_length
+        
+    def add_subscriber(self, subscriber):
+        self.subscribers.append(subscriber)
+        return 0

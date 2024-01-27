@@ -34,6 +34,10 @@ class SlidingWindow(AbstractTrainingSetUpdateMethod):
             
     def get_window_length(self) -> int:
         self.window_length
+        
+    def add_subscriber(self, subscriber):
+        self.subscribers.append(subscriber)
+        return 0
 
 """Sliding window helper function
 """

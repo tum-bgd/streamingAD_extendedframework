@@ -58,6 +58,10 @@ class AnomalyAwareReservoir(AbstractTrainingSetUpdateMethod):
 
     def get_window_length(self) -> int:
         self.reservoir_length
+        
+    def add_subscriber(self, subscriber):
+        self.subscribers.append(subscriber)
+        return 0
 
     def calculate_priority(self, anomaly_score):
         return self.base_of_exponent ** (1 / (np.exp(- self.exponent_lambda * anomaly_score)))

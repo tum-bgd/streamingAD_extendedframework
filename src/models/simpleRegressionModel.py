@@ -8,7 +8,7 @@ class SimpleRegressionModel(Model):
   def __init__(self):
     super().__init__()
     self.dense1 = Dense(20, activation=tf.nn.relu)
-    self.dense2 = Dense(20, activation=tf.nn.softmax)
+    self.dense2 = Dense(20)
 
   def call(self, inputs):
     x = self.dense1(inputs)

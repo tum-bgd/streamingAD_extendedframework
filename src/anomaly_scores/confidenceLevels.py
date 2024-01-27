@@ -9,7 +9,7 @@ from ..nonconformity_scores.euclidean_distance import EuclideanDistanceNonConfor
 
 class ConfidenceLevels(AbstractAnomalyScore):
     def __init__(self, publisher: EuclideanDistanceNonConformity, training_set_publisher: AbstractTrainingSetUpdateMethod,
-                 subscribers: list, initial_nonconformity_scores: np.ndarray, confidence_window_length: int) -> None:
+                 subscribers: list, save_path: str, initial_nonconformity_scores: np.ndarray, confidence_window_length: int) -> None:
         self.publisher = publisher
         self.training_set_publisher = training_set_publisher
         self.subscribers = subscribers
@@ -19,6 +19,7 @@ class ConfidenceLevels(AbstractAnomalyScore):
         self.anomaly_window = []
         self.training_set_length = self.training_set_publisher.get_window_length()
         assert len(initial_nonconformity_scores) == self.training_set_length
+        self.save_path = save_path
         self.nonconformity_scores_training_set = initial_nonconformity_scores
         self.uniform_cdf_x = None
 

@@ -5,13 +5,13 @@ from abstractAnomalyScore import AbstractAnomalyScore
 from ..nonconformity_scores.euclidean_distance import EuclideanDistanceNonConformity
 
 class AnomalyLikelihood(AbstractAnomalyScore):
-    def __init__(self, publisher: EuclideanDistanceNonConformity, subscribers: list, save_path: str, short_term_length: int, long_term_length: int) -> None:
+    def __init__(self, publisher: EuclideanDistanceNonConformity, subscribers: list, save_path: str, initial_nonconformity_scores: np.ndarray, short_term_length: int, long_term_length: int) -> None:
         self.publisher = publisher
         self.subscribers = subscribers
         self.save_path = save_path
         self.short_term_length = short_term_length
         self.long_term_length = long_term_length
-        self.nonconformity_scores_reservoir = np.zeros((long_term_length))
+        self.nonconformity_scores_reservoir = initial_nonconformity_scores[-long_term_length:]
         self.running_short_term_sum = np.sum(self.nonconformity_scores_reservoir[-self.short_term_length:])
         self.running_long_term_sum = np.sum(self.nonconformity_scores_reservoir[-self.long_term_length:])
         self.running_long_term_sum2 = np.sum(np.square(self.nonconformity_scores_reservoir[-self.long_term_length:]))

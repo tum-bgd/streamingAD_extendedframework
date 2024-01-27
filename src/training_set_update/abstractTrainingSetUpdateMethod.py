@@ -19,3 +19,7 @@ class AbstractTrainingSetUpdateMethod(AbstractSubscriber):
     @abstractmethod
     def get_window_length() -> int:
         pass
+    
+    @abstractmethod
+    def add_subscriber():
+        pass
