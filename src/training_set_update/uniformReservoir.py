@@ -1,17 +1,23 @@
 import numpy as np
 
 from ..dataRepresentation import WindowStreamVectors
-from abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
-from slidingWindow import sliding_window
+from .abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from .slidingWindow import sliding_window
 
 class UniformReservoir(AbstractTrainingSetUpdateMethod):
-    def __init__(self, publisher: WindowStreamVectors, reservoir_length: int, first_reservoir: np.ndarray, subscribers: list) -> None:
+    def __init__(self, publisher: WindowStreamVectors, reservoir_length: int, first_reservoir: np.ndarray, 
+                 subscribers: list, id: str, model_id: str, debug=False) -> None:
         self.publisher:WindowStreamVectors = publisher
+        self.id = id
+        self.model_id = model_id
         self.reservoir:np.ndarray = first_reservoir
         self.reservoir_length = reservoir_length
         self.feature_vector_length = len(publisher.get_feature_vector())
         self.subscribers = subscribers
         self.last_removed_indices = []
+        self.last_added = None
+        self.last_removed = None
+        self.debug = debug
     
     def get_training_set(self):
         return self.reservoir
@@ -21,11 +27,11 @@ class UniformReservoir(AbstractTrainingSetUpdateMethod):
     """    
     def update_reservoir(self):
         new_feature_vector = self.publisher.get_feature_vector()
-        self.last_added = new_feature_vector.reshape((1, *new_feature_vector.shape))
+        self.last_added = new_feature_vector
         to_drop = np.random.randint(0, self.reservoir_length)
-        self.last_removed = self.reservoir[to_drop:to_drop+1]
+        self.last_removed = self.reservoir[to_drop]
         self.last_removed_indices = [to_drop]
-        self.reservoir = np.append(np.delete(self.reservoir, to_drop), new_feature_vector)
+        self.reservoir = np.append(np.delete(self.reservoir, to_drop, axis=0), new_feature_vector[np.newaxis, :], axis=0)
         return 0
     
     def get_last_added_removed(self):
@@ -36,14 +42,26 @@ class UniformReservoir(AbstractTrainingSetUpdateMethod):
         }
     
     def notify(self):
+        if self.debug:
+            from time import time
+            t1 = time()
         self.update_reservoir()
+        if self.debug:
+            print(f'UniformReservoir at {hex(id(self))} update after {time()-t1:.6f}s')
         for subscriber in self.subscribers:
             subscriber.notify()
         return 0
     
     def get_window_length(self) -> int:
-        self.reservoir_length
+        return self.reservoir_length
+    
+    def get_update_index(self) -> int:
+        return self.publisher.publisher.get_update_index()
         
     def add_subscriber(self, subscriber):
         self.subscribers.append(subscriber)
+        return 0
+    
+    def add_subscribers(self, subscribers):
+        self.subscribers.extend(subscribers)
         return 0
