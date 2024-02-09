@@ -8,7 +8,7 @@ from ..modelWrapper import ModelWrapper
 
 
 class NonConformityWrapper(AbstractSubscriber):
-    def __init__(self, publisher: ModelWrapper, subscribers: list, save_paths: list[str], measure='euclidean', debug=False) -> None:
+    def __init__(self, publisher: ModelWrapper, subscribers: list, save_paths: "list[str]", measure='euclidean', debug=False) -> None:
         self.subscribers = subscribers
         self.publisher = publisher
         self.save_paths = save_paths

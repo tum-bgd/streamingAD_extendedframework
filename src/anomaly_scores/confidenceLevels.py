@@ -48,7 +48,7 @@ https://openaccess.city.ac.uk/id/eprint/18541/ (accessed 2024-01-31))
 """
 class ConfidenceLevels(AbstractAnomalyScore):
     def __init__(self, publisher: NonConformityWrapper, ts_window_publisher: TsWindowPublisher, training_set_publisher_id: str,
-                 subscribers: list, save_paths: list[str], initial_nonconformity_scores: np.ndarray, confidence_window_length: int,
+                 subscribers: list, save_paths: "list[str]", initial_nonconformity_scores: np.ndarray, confidence_window_length: int,
                  training_set_length: int, update_parameters_with_notify=True, debug=False) -> None:
         self.publisher = publisher
         self.ts_window_publisher = ts_window_publisher

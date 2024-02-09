@@ -24,7 +24,7 @@ If short_term_mean < long_term_mean, anomaly_score < 0.5 and decreasing to 0 (ve
 
 class AnomalyLikelihood(AbstractAnomalyScore):
     def __init__(self, publisher: NonConformityWrapper, ts_window_publisher: TsWindowPublisher, subscribers: list,
-                 save_paths: list[str], initial_nonconformity_scores: np.ndarray, short_term_length: int,
+                 save_paths: "list[str]", initial_nonconformity_scores: np.ndarray, short_term_length: int,
                  long_term_length: int, update_at_notify=[], threshold=0.9, debug=False) -> None:
         self.publisher = publisher
         self.ts_window_publisher = ts_window_publisher

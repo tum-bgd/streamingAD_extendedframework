@@ -13,7 +13,7 @@ class AbstractTrainingSetUpdateMethod(AbstractSubscriber):
         pass
     
     @abstractmethod
-    def get_last_added_removed(self) -> dict[str, np.ndarray]:
+    def get_last_added_removed(self) -> "dict[str, np.ndarray]":
         pass
     
     @abstractmethod

@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.python.keras import Model
 from tensorflow.python.keras.layers import Dense, Input, Permute
 
-def get_usad(input_shape: tuple[int], latent_size: int):
+def get_usad(input_shape: "tuple[int]", latent_size: int):
     input_shape_transposed = (input_shape[1], input_shape[0])
     in_size = input_shape[0]
     inputs = Input(shape=input_shape)

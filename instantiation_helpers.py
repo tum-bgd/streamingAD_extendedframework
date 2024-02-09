@@ -8,13 +8,14 @@ from src.models.simpleRegressionModel import get_simple_regression_model
 from src.models.usad import get_usad
 from src.models.onlineARIMA import get_online_arima
 from src.models.nbeats import get_nbeats
+from src.models.onlineVAR import OnlineVAR
 from src.nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
 from src.anomaly_scores.anomalyLikelihood import AnomalyLikelihood
 from src.anomaly_scores.confidenceLevels import ConfidenceLevels
 from src.anomaly_scores.averageOfWindow import AverageOfWindow
 
 
-def instantiate_model_wrappers(models_list: list, publisher: WindowStreamVectors, input_shape: tuple[int], debug=False):
+def instantiate_model_wrappers(models_list: list, publisher: WindowStreamVectors, input_shape: "tuple[int]", debug=False):
     new_models = [
         ModelWrapper(tf_model=get_simple_regression_model(input_shape=input_shape),
                      publisher=publisher, subscribers=[], model_id='simple_regression',
@@ -29,6 +30,10 @@ def instantiate_model_wrappers(models_list: list, publisher: WindowStreamVectors
                      publisher=publisher, subscribers=[], model_id='nbeats',
                      model_type='forecasting', debug=debug),
     ]
+    if input_shape[1] > 1:
+        new_models.append(
+            OnlineVAR(lag_order=10, publisher=publisher, subscribers=[], model_id='online_var',
+                      model_type='forecasting', debug=debug))
     models_list.extend(new_models)
     publisher.add_subscribers(new_models)
     
@@ -116,7 +121,7 @@ def instantiate_anomaly_scores(ts_window_publisher: TsWindowPublisher, nonconfor
             debug=debug),
     ]
 
-def save_paths(out_base_path: str, date_id: str, model_id: str, reservoir_ids: list[str], anomaly_score_ids: list[str], filename='anomaly_scores.csv'):
+def save_paths(out_base_path: str, date_id: str, model_id: str, reservoir_ids: "list[str]", anomaly_score_ids: "list[str]", filename='anomaly_scores.csv'):
     # reservoir_ids = ['sw_mu_sig', 'ures_mu_sig', 'sw_ks', 'ures_ks', 'ares_al_mu_sig', 'ares_cl_mu_sig', 'ares_al_ks', 'ares_cl_ks']
     # anomaly_score_ids = ['avg_of_window', 'anomaly_likelihood', 'confidence_levels']
 

@@ -4,7 +4,7 @@ from .tsWindowPublisher import TsWindowPublisher
 from .abstractSubscriber import AbstractSubscriber
 
 class WindowStreamVectors(AbstractSubscriber):
-    def __init__(self, publisher: TsWindowPublisher, window_length: int, subscribers: list[AbstractSubscriber], debug=False) -> None:
+    def __init__(self, publisher: TsWindowPublisher, window_length: int, subscribers: "list[AbstractSubscriber]", debug=False) -> None:
         self.publisher:TsWindowPublisher = publisher
         self.window_length = window_length
         self.subscribers = subscribers

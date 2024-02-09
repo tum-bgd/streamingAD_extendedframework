@@ -1,6 +1,6 @@
 from nbeats_keras.model import NBeatsNet
 
-def get_nbeats(input_shape: tuple[int]):
+def get_nbeats(input_shape: "tuple[int]"):
     return NBeatsNet(
         input_dim=input_shape[1], 
         output_dim=input_shape[1],

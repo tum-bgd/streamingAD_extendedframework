@@ -9,7 +9,7 @@ C. Liu, S. C. Hoi, P. Zhao, and J. Sun, “Online arima algorithms for time
 series prediction,” in Proceedings of the AAAI conference on artificial
 intelligence, vol. 30, no. 1, 2016.
 """
-def get_online_arima(input_shape: tuple[int], d: int):
+def get_online_arima(input_shape: "tuple[int]", d: int):
     # 1) Find value N=k+m, based on window length
     window_length = input_shape[0]
     N = window_length - d

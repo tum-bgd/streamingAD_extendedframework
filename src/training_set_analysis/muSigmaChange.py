@@ -56,8 +56,8 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
             print(
                 f'Training set {self.publisher} changed according to mu/sigma')
             publisher_model_id = self.publisher.model_id
-            model_id_set = set([x['object'].model_id for x in self.models])
-            if publisher_model_id == 'all' and not publisher_model_id == 'pcb_iforest':
+            model_id_set = set([x['object'].model_id for x in self.models if x['object'].model_id != 'pcb_iforest'])
+            if publisher_model_id == 'all':
                 for model_id in model_id_set:
                     self.retrain_model_and_rearrange_variables_tree(
                         model_id=model_id)

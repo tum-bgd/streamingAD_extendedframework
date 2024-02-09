@@ -11,7 +11,7 @@ from ..nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
 
 class AverageOfWindow(AbstractAnomalyScore):
     def __init__(self, publisher: NonConformityWrapper, ts_window_publisher: TsWindowPublisher, subscribers: list,
-                 save_paths: list[str], initial_nonconformity_scores: np.ndarray, window_length: int, debug=False) -> None:
+                 save_paths: "list[str]", initial_nonconformity_scores: np.ndarray, window_length: int, debug=False) -> None:
         self.publisher = publisher
         self.ts_window_publisher = ts_window_publisher
         self.subscribers = subscribers
