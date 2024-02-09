@@ -59,11 +59,11 @@ class ConfidenceLevels(AbstractAnomalyScore):
         self.pvalue_window_length = confidence_window_length // 10
         self.pvalue_window = []
         self.training_set_length = training_set_length
-        assert len(initial_nonconformity_scores) == self.training_set_length
         self.save_paths = save_paths
-        self.nonconformity_scores_training_set = initial_nonconformity_scores
+        self.nonconformity_scores_training_set = initial_nonconformity_scores[-training_set_length:]
         self.uniform_cdf_x = None
         self.update_parameters_with_notify = update_parameters_with_notify
+        self.max_neg_log_pvalue = 1
         self.debug = debug
 
     def set_training_set_publisher(self, training_set_publisher: AbstractTrainingSetUpdateMethod):
@@ -72,43 +72,60 @@ class ConfidenceLevels(AbstractAnomalyScore):
     def update_parameters(self):
         d = self.training_set_publisher.get_last_added_removed()
         if len(d['last_removed_indices']) != 0:
-            to_remove = d['last_removed_indices'][0]
-            to_add = self.publisher.nonconformity_score
+            to_remove_indices = d['last_removed_indices']
+            if 'last_added_indices' in d.keys():
+                to_add = self.publisher.nonconformity_scores[d['last_added_indices']]
+            else:
+                to_add = self.publisher.nonconformity_scores
             self.nonconformity_scores_training_set = \
-                np.append(
-                    np.delete(self.nonconformity_scores_training_set, to_remove), to_add)
+                np.concatenate(
+                    [np.delete(self.nonconformity_scores_training_set, to_remove_indices, axis=0), to_add])
 
-    def calculate_anomaly_score(self):
-        self.current_confidence_level = \
-            np.count_nonzero(self.publisher.nonconformity_score > self.nonconformity_scores_training_set) / \
-            self.training_set_length
-        if len(self.confidence_window) == self.confidence_window_length:
-            self.confidence_window.pop(0)
-            self.confidence_window.append(self.current_confidence_level)
-            test_results = kstest(self.confidence_window, uniform.cdf)
-            pvalue = test_results.pvalue
-            if len(self.pvalue_window) == self.pvalue_window_length:
-                self.pvalue_window.pop(0)
-            self.pvalue_window.append(pvalue)
-            # self.anomaly_score = 1 - pvalue
-            
-            # unification step (neg logarithm, normalization, min-max scaling)
-            neg_log_pvalues = - np.log(self.pvalue_window)
-            normalized_neg_log_pvalues = (neg_log_pvalues - np.mean(neg_log_pvalues, keepdims=True)) / np.std(neg_log_pvalues, keepdims=True)
-            anomaly_scores = (normalized_neg_log_pvalues - np.min(normalized_neg_log_pvalues)) / (np.max(normalized_neg_log_pvalues) - np.min(neg_log_pvalues))
-            self.anomaly_score = anomaly_scores[-1]
-        else:
-            self.confidence_window.append(self.current_confidence_level)
-            self.anomaly_score = np.nan
+    def calculate_anomaly_scores(self):
+        step_size = len(self.publisher.nonconformity_scores)
+        self.current_confidence_levels = \
+            [np.count_nonzero(self.nonconformity_scores_training_set >= self.publisher.nonconformity_scores[i]) / \
+            self.training_set_length for i in range(step_size)]
+        self.current_pvalues, self.anomaly_scores = np.zeros((step_size,)), np.zeros((step_size,))
+        for i, ccl in enumerate(self.current_confidence_levels):
+            if len(self.confidence_window) == self.confidence_window_length:
+                self.confidence_window.pop(0)
+                self.confidence_window.append(ccl)
+                unique_cw = set(self.confidence_window)
+                if len(unique_cw) > 30:
+                    test_results = kstest(list(unique_cw), uniform.cdf)
+                    self.current_pvalues[i] = test_results.pvalue
+                    if len(self.pvalue_window) == self.pvalue_window_length:
+                        self.pvalue_window.pop(0)
+                    self.pvalue_window.append(test_results.pvalue)
+                    
+                    # unification step (neg logarithm, normalization, min-max scaling)
+                    neg_log_pvalues = - np.log(np.clip(self.pvalue_window, 1e-40, 1))
+                    # normalized_neg_log_pvalues = (neg_log_pvalues - np.mean(neg_log_pvalues, keepdims=True)) / np.clip(np.std(neg_log_pvalues, keepdims=True), 1e-6, 1e+6)
+                    # anomaly_scores = (normalized_neg_log_pvalues - np.min(normalized_neg_log_pvalues)) / np.clip(self.max_normalized_neg_log_pvalue - np.min(normalized_neg_log_pvalues), 1e-6, 1e+6)
+                    anomaly_scores = (neg_log_pvalues - np.min(neg_log_pvalues)) / np.clip(max(self.max_neg_log_pvalue, np.max(neg_log_pvalues)) - np.min(neg_log_pvalues), 1e-6, 1e+6)
+                    self.anomaly_scores[i] = anomaly_scores[-1]
+                    if np.max(neg_log_pvalues) > 0.9 * self.max_neg_log_pvalue:
+                        self.max_neg_log_pvalue = np.max(neg_log_pvalues) + 5
+                    # if self.anomaly_scores[i] > 0.95:
+                    #     test = 1
+                    #     confidence_window_numpy = np.array(self.confidence_window)
+                else:
+                    self.current_pvalues[i] = np.nan
+                    self.anomaly_scores[i] = np.nan
+            else:
+                self.confidence_window.append(ccl)
+                self.current_pvalues[i] = np.nan
+                self.anomaly_scores[i] = np.nan
 
-    def save_anomaly_score(self):
+    def save_anomaly_scores(self):
         update_index = self.ts_window_publisher.get_update_index()
         for save_path in self.save_paths:
             parent_dir = '/'.join(save_path.split('/')[:-1])
             if not os.path.exists(parent_dir):
                 os.makedirs(parent_dir)
-            entry = pd.DataFrame([self.anomaly_score], columns=[
-                                    'anomaly_score'], index=[update_index])
+            entry = pd.DataFrame(self.anomaly_scores, columns=[
+                'anomaly_score'], index=[i for i in range(update_index-len(self.anomaly_scores)+1, update_index+1)])
             if not os.path.exists(save_path):
                 entry.index.name = 'update_index'
                 entry.to_csv(save_path, mode='w')
@@ -122,8 +139,23 @@ class ConfidenceLevels(AbstractAnomalyScore):
             if not os.path.exists(parent_dir):
                 os.makedirs(parent_dir)
             cl_save_path = '/'.join(save_path.split('/')[:-1] + ['confidence_levels.csv'])
-            entry = pd.DataFrame([self.current_confidence_level], columns=[
-                                    'confidence_level'], index=[update_index])
+            entry = pd.DataFrame(self.current_confidence_levels, columns=[
+                                    'confidence_level'], index=[i for i in range(update_index-len(self.current_confidence_levels)+1, update_index+1)])
+            if not os.path.exists(cl_save_path):
+                entry.index.name = 'update_index'
+                entry.to_csv(cl_save_path, mode='w')
+            else:
+                entry.to_csv(cl_save_path, mode='a', header=False)
+                
+    def save_pvalue(self):
+        update_index = self.ts_window_publisher.get_update_index()
+        for save_path in self.save_paths:
+            parent_dir = '/'.join(save_path.split('/')[:-1])
+            if not os.path.exists(parent_dir):
+                os.makedirs(parent_dir)
+            cl_save_path = '/'.join(save_path.split('/')[:-1] + ['pvalues.csv'])
+            entry = pd.DataFrame(self.current_pvalues, columns=[
+                                    'pvalue'], index=[i for i in range(update_index-len(self.current_pvalues)+1, update_index+1)])
             if not os.path.exists(cl_save_path):
                 entry.index.name = 'update_index'
                 entry.to_csv(cl_save_path, mode='w')
@@ -136,16 +168,17 @@ class ConfidenceLevels(AbstractAnomalyScore):
             t1 = time()
         if self.update_parameters_with_notify:
             self.update_parameters()
-        self.calculate_anomaly_score()
-        self.save_anomaly_score()
+        self.calculate_anomaly_scores()
+        self.save_anomaly_scores()
         self.save_confidence_level()
+        self.save_pvalue()
         if self.debug:
             print(f'ConfidenceLevels at {hex(id(self))} update after {time()-t1:.6f}s')
         for subscriber in self.subscribers:
             subscriber.notify()
 
-    def get_anomaly_score(self) -> np.ndarray:
-        return self.anomaly_score
+    def get_anomaly_scores(self) -> np.ndarray:
+        return self.anomaly_scores
 
     def add_subscriber(self, subscriber):
         self.subscribers.append(subscriber)
@@ -162,7 +195,7 @@ class ConfidenceLevels(AbstractAnomalyScore):
             confidence_window_length=self.confidence_window_length,
             debug=self.debug)
         new_instance.confidence_window = self.confidence_window.copy()
-        new_instance.anomaly_score = self.anomaly_score
+        new_instance.anomaly_scores = self.anomaly_scores
         new_instance.pvalue_window = self.pvalue_window.copy()
         new_instance.update_parameters_with_notify = self.update_parameters_with_notify
         new_instance.training_set_publisher = self.training_set_publisher

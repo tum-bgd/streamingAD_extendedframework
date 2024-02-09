@@ -4,33 +4,36 @@ from ..dataRepresentation import WindowStreamVectors
 from .abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
 
 class SlidingWindow(AbstractTrainingSetUpdateMethod):
-    def __init__(self, publisher: WindowStreamVectors, window_length: int, first_reservoir: np.ndarray, 
+    def __init__(self, publisher: WindowStreamVectors, reservoir_length: int, first_reservoir: np.ndarray, 
                  subscribers: list, id: str, model_id: str, debug=False) -> None:
         self.publisher:WindowStreamVectors = publisher
         self.id = id
         self.model_id = model_id
-        self.window_length = window_length
-        self.feature_vector_length = len(publisher.get_feature_vector())
+        self.reservoir_length = reservoir_length
+        self.feature_vector_length = len(publisher.get_feature_vectors())
         self.reservoir = first_reservoir
         self.subscribers = subscribers
         self.last_added = None
         self.last_removed = None
+        self.last_removed_indices = []
         self.debug = debug
     
     def get_training_set(self):
         return self.reservoir
     
     def update_training_set(self):
-        new_feature_vector = self.publisher.get_feature_vector()
-        self.last_added = new_feature_vector
-        self.last_removed = self.reservoir[0]
-        self.reservoir = np.concatenate([self.reservoir[1:], new_feature_vector.reshape((1, *new_feature_vector.shape))])
+        new_feature_vectors = self.publisher.feature_vectors
+        step_size = len(new_feature_vectors)
+        self.last_added = new_feature_vectors
+        self.last_removed = self.reservoir[step_size]
+        self.last_removed_indices = [i for i in range(step_size)]
+        self.reservoir = np.concatenate([self.reservoir[step_size:], new_feature_vectors])
     
     def get_last_added_removed(self):
         return {
             'last_added': self.last_added,
             'last_removed': self.last_removed,
-            'last_removed_indices': [0],
+            'last_removed_indices': self.last_removed_indices,
         }
     
     def notify(self):
@@ -44,7 +47,7 @@ class SlidingWindow(AbstractTrainingSetUpdateMethod):
             subscriber.notify()
             
     def get_window_length(self) -> int:
-        return self.window_length
+        return self.reservoir_length
         
     def add_subscriber(self, subscriber):
         self.subscribers.append(subscriber)

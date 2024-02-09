@@ -6,15 +6,11 @@ from ..training_set_update.abstractTrainingSetUpdateMethod import AbstractTraini
 
 class AbstractAnomalyScore(AbstractSubscriber):
     @abstractmethod
-    def calculate_anomaly_score(self):
+    def save_anomaly_scores(self):
         pass
     
     @abstractmethod
-    def save_anomaly_score(self):
-        pass
-    
-    @abstractmethod
-    def get_anomaly_score(self) -> np.ndarray:
+    def get_anomaly_scores(self) -> np.ndarray:
         pass
     
     @abstractmethod

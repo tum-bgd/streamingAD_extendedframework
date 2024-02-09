@@ -33,10 +33,10 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
     def update_parameters(self):
         d = self.publisher.get_last_added_removed()
         N = self.publisher.get_window_length()
-        self.running_mu += (1 / N) * (d['last_added'] - d['last_removed'])
-        self.running_sum += d['last_added'] - d['last_removed']
-        self.running_sum2 += np.square(d['last_added']) - \
-            np.square(d['last_removed'])
+        self.running_mu += (1 / N) * (np.sum(d['last_added'], axis=0) - np.sum(d['last_removed'], axis=0))
+        self.running_sum += np.sum(d['last_added']) - np.sum(d['last_removed'])
+        self.running_sum2 += np.square(np.sum(d['last_added'])) - \
+            np.square(np.sum(d['last_removed']))
         self.running_var = (1 / (N-1)) * (self.running_sum2 -
                                           (1/N) * np.square(self.running_sum))
         self.counter += 1
@@ -52,9 +52,12 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
         if check_mu or check_std or self.debug:
             print(
                 f'Model retraining after {self.publisher.get_update_index()} steps - will be reset')
+            print(f'Publisher id: {self.publisher.id} - Model id: {self.publisher.model_id}')
+            print(
+                f'Training set {self.publisher} changed according to mu/sigma')
             publisher_model_id = self.publisher.model_id
             model_id_set = set([x['object'].model_id for x in self.models])
-            if publisher_model_id == 'all':
+            if publisher_model_id == 'all' and not publisher_model_id == 'pcb_iforest':
                 for model_id in model_id_set:
                     self.retrain_model_and_rearrange_variables_tree(
                         model_id=model_id)
@@ -70,7 +73,7 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
         model_versions = [(i, x['version']) for i, x in enumerate(
             self.models) if model_id == x['object'].model_id]
         anomaly_score_id = None
-        if publisher_id in ['ares_al_mu_sig', 'ares_al_ks']:
+        if publisher_id in ['ares_al_mu_sig', 'ares_al_ks'] or model_id == 'pcb_iforest':
             anomaly_score_id = 'anomaly_likelihood'
         elif publisher_id in ['ares_cl_mu_sig', 'ares_cl_ks']:
             anomaly_score_id = 'confidence_levels'
@@ -85,11 +88,10 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
                     model_id=model_id,
                     r_id=publisher_id,
                     anomaly_score_id=anomaly_score_id,
-                    filename=f'{model_id}-step{self.publisher.get_update_index()}.h5',
+                    filename=f'{model_id}-musigma-step{self.publisher.get_update_index()}.h5',
                 )
                 for save_path in save_paths:
-                    self.models[model_idx]['object'].tf_model.save_weights(
-                        save_path)
+                    self.models[model_idx]['object'].save_model(save_path=save_path)
         else:
             # Create new branch in variables tree
             model_idx = [x[0]
@@ -113,7 +115,7 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
                 else:
                     new_branch['nonconformity_score']['object'].save_paths.remove(save_path)
             new_branch_anomaly_scores = []
-            if publisher_id in ['sw', 'ures']:
+            if publisher_id in ['sw_mu_sig', 'ures_mu_sig']:
                 for anomaly_score in model['nonconformity_score']['object'].subscribers:
                     as_copy = anomaly_score.factory_copy()
                     as_copy.publisher = new_branch['nonconformity_score']['object']
@@ -170,14 +172,13 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
                     model_id=model_id,
                     r_id=publisher_id,
                     anomaly_score_id=anomaly_score_id,
-                    filename=f'{model_id}-step{self.publisher.get_update_index()}.h5',
+                    filename=f'{model_id}-musigma-step{self.publisher.get_update_index()}.h5',
                 )
                 for save_path in save_paths:
-                    model['object'].tf_model.save_weights(
-                        save_path)
+                    model['object'].save_model(save_path=save_path)
 
     def calc_std(self, var: np.ndarray):
-        return np.sqrt(var)
+        return np.sqrt(np.clip(var, 1e-6, 1e+20))
 
     def notify(self):
         if self.debug:

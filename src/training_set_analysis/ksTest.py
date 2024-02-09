@@ -53,11 +53,12 @@ class KsTest(AbstractTrainingSetAnalysisMethod):
         if any(test_statistics > critical_value) or self.debug:
             print(
                 f'Model retraining after {self.publisher.get_update_index()} steps - will be reset')
+            print(f'Publisher id: {self.publisher.id} - Model id: {self.publisher.model_id}')
             print(
-                f'Training set at {hex(id(self.publisher))} changed according to KS test with test statistics any({test_statistics} > {critical_value}) (critical value)')
+                f'Training set {self.publisher} changed according to KS test with test statistics any({test_statistics} > {critical_value:.6f}) (critical value)')
             publisher_model_id = self.publisher.model_id
             model_id_set = set([x['object'].model_id for x in self.models])
-            if publisher_model_id == 'all':
+            if publisher_model_id == 'all' and not publisher_model_id == 'pcb_iforest':
                 for model_id in model_id_set:
                     self.retrain_model_and_rearrange_variables_tree(
                         model_id=model_id)
@@ -73,7 +74,7 @@ class KsTest(AbstractTrainingSetAnalysisMethod):
         model_versions = [(i, x['version']) for i, x in enumerate(
             self.models) if model_id == x['object'].model_id]
         anomaly_score_id = None
-        if publisher_id in ['ares_al_mu_sig', 'ares_al_ks']:
+        if publisher_id in ['ares_al_mu_sig', 'ares_al_ks'] or model_id == 'pcb_iforest':
             anomaly_score_id = 'anomaly_likelihood'
         elif publisher_id in ['ares_cl_mu_sig', 'ares_cl_ks']:
             anomaly_score_id = 'confidence_levels'
@@ -88,11 +89,10 @@ class KsTest(AbstractTrainingSetAnalysisMethod):
                     model_id=model_id,
                     r_id=publisher_id,
                     anomaly_score_id=anomaly_score_id,
-                    filename=f'{model_id}-step{self.publisher.get_update_index()}.h5',
+                    filename=f'{model_id}-ks-step{self.publisher.get_update_index()}.h5',
                 )
                 for save_path in save_paths:
-                    self.models[model_idx]['object'].tf_model.save_weights(
-                        save_path)
+                    self.models[model_idx]['object'].save_model(save_path=save_path)
         else:
             # Create new branch in variables tree
             model_idx = [x[0]
@@ -116,7 +116,7 @@ class KsTest(AbstractTrainingSetAnalysisMethod):
                 else:
                     new_branch['nonconformity_score']['object'].save_paths.remove(save_path)
             new_branch_anomaly_scores = []
-            if publisher_id in ['sw', 'ures']:
+            if publisher_id in ['sw_ks', 'ures_ks']:
                 for anomaly_score in model['nonconformity_score']['object'].subscribers:
                     as_copy = anomaly_score.factory_copy()
                     as_copy.publisher = new_branch['nonconformity_score']['object']
@@ -161,23 +161,6 @@ class KsTest(AbstractTrainingSetAnalysisMethod):
                                     anomaly_score.save_paths.remove(save_path)
             new_branch['nonconformity_score']['subscribers'] = new_branch_anomaly_scores
             new_branch['nonconformity_score']['object'].subscribers = new_branch_anomaly_scores
-            
-            # Adjust save paths
-            for save_path in new_branch['nonconformity_score']['object'].save_paths.copy():
-                if publisher_id in save_path and save_path in model['nonconformity_score']['object'].save_paths:
-                    model['nonconformity_score']['object'].save_paths.remove(save_path)
-                else:
-                    new_branch['nonconformity_score']['object'].save_paths.remove(save_path)
-            for i, new_branch_anomaly_score in enumerate(new_branch['nonconformity_score']['object'].subscribers):
-                for save_path in new_branch_anomaly_score.save_paths.copy():
-                    if publisher_id in save_path and save_path in model['nonconformity_score']['object'].subscribers[i].save_paths:
-                        if new_branch_anomaly_score in model['nonconformity_score']['object'].subscribers:
-                            old_index = model['nonconformity_score']['object'].subscribers.index(new_branch_anomaly_score)
-                            model['nonconformity_score']['object'].subscribers[old_index].save_paths.remove(save_path)
-                            model['nonconformity_score']['subscribers'][old_index].save_paths.remove(save_path)
-                    else:
-                        new_branch_anomaly_score.save_paths.remove(save_path)
-                        new_branch['nonconformity_score']['subscribers'].remove(save_path)
 
             self.models.append(new_branch)
 
@@ -190,11 +173,10 @@ class KsTest(AbstractTrainingSetAnalysisMethod):
                     model_id=model_id,
                     r_id=publisher_id,
                     anomaly_score_id=anomaly_score_id,
-                    filename=f'{model_id}-step{self.publisher.get_update_index()}.h5',
+                    filename=f'{model_id}-ks-step{self.publisher.get_update_index()}.h5',
                 )
                 for save_path in save_paths:
-                    model['object'].tf_model.save_weights(
-                        save_path)
+                    model['object'].save_model(save_path=save_path)
 
     def notify(self):
         if self.debug:

@@ -12,7 +12,7 @@ class UniformReservoir(AbstractTrainingSetUpdateMethod):
         self.model_id = model_id
         self.reservoir:np.ndarray = first_reservoir
         self.reservoir_length = reservoir_length
-        self.feature_vector_length = len(publisher.get_feature_vector())
+        self.feature_vector_length = len(publisher.get_feature_vectors())
         self.subscribers = subscribers
         self.last_removed_indices = []
         self.last_added = None
@@ -26,12 +26,13 @@ class UniformReservoir(AbstractTrainingSetUpdateMethod):
     Note: If this needs to be sped up, remove len(new_values) random elements from reservoir at once.
     """    
     def update_reservoir(self):
-        new_feature_vector = self.publisher.get_feature_vector()
-        self.last_added = new_feature_vector
-        to_drop = np.random.randint(0, self.reservoir_length)
+        new_feature_vectors = self.publisher.feature_vectors
+        step_size = len(new_feature_vectors)
+        self.last_added = new_feature_vectors
+        to_drop = np.random.randint(0, min(len(self.reservoir), self.reservoir_length), size=(step_size,))
         self.last_removed = self.reservoir[to_drop]
-        self.last_removed_indices = [to_drop]
-        self.reservoir = np.append(np.delete(self.reservoir, to_drop, axis=0), new_feature_vector[np.newaxis, :], axis=0)
+        self.last_removed_indices = to_drop
+        self.reservoir = np.concatenate([np.delete(self.reservoir, to_drop, axis=0), new_feature_vectors], axis=0)
         return 0
     
     def get_last_added_removed(self):
@@ -45,11 +46,17 @@ class UniformReservoir(AbstractTrainingSetUpdateMethod):
         if self.debug:
             from time import time
             t1 = time()
-        self.update_reservoir()
-        if self.debug:
-            print(f'UniformReservoir at {hex(id(self))} update after {time()-t1:.6f}s')
-        for subscriber in self.subscribers:
-            subscriber.notify()
+        perform_update = np.random.uniform(0, 1) < self.reservoir_length / self.get_update_index()
+        if perform_update:
+            self.update_reservoir()
+            if self.debug:
+                print(f'UniformReservoir at {hex(id(self))} update after {time()-t1:.6f}s')
+            for subscriber in self.subscribers:
+                subscriber.notify()
+        else:
+            self.last_added = []
+            self.last_removed = []
+            self.last_removed_indices = []
         return 0
     
     def get_window_length(self) -> int:

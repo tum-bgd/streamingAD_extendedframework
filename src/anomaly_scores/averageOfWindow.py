@@ -23,22 +23,23 @@ class AverageOfWindow(AbstractAnomalyScore):
         self.debug = debug
 
     def update_parameters(self):
-        to_add = self.publisher.nonconformity_score
-        to_remove = self.window[0]
-        self.window = np.append(self.window[1:], to_add)
-        self.running_mean += (1/self.window_length) * (to_add - to_remove)
+        to_add = self.publisher.nonconformity_scores
+        step_size = len(to_add)
+        to_remove = self.window[:step_size]
+        self.anomaly_scores = np.array(
+            [self.running_mean + (1/self.window_length) * (np.sum(to_add[:i]) - np.sum(to_remove[:i])) for i in range(1, step_size+1)])
+        self.window = np.concatenate([self.window[step_size:], to_add])
+        self.running_mean += (1/self.window_length) * \
+            (np.sum(to_add) - np.sum(to_remove))
 
-    def calculate_anomaly_score(self):
-        self.anomaly_score = self.running_mean
-
-    def save_anomaly_score(self):
+    def save_anomaly_scores(self):
         update_index = self.ts_window_publisher.get_update_index()
         for save_path in self.save_paths:
             parent_dir = '/'.join(save_path.split('/')[:-1])
             if not os.path.exists(parent_dir):
                 os.makedirs(parent_dir)
-            entry = pd.DataFrame([self.anomaly_score], columns=[
-                'anomaly_score'], index=[update_index])
+            entry = pd.DataFrame(self.anomaly_scores, columns=[
+                'anomaly_score'], index=[i for i in range(update_index-len(self.anomaly_scores)+1, update_index+1)])
             if not os.path.exists(save_path):
                 entry.index.name = 'update_index'
                 entry.to_csv(save_path, mode='w')
@@ -50,16 +51,15 @@ class AverageOfWindow(AbstractAnomalyScore):
             from time import time
             t1 = time()
         self.update_parameters()
-        self.calculate_anomaly_score()
-        self.save_anomaly_score()
+        self.save_anomaly_scores()
         if self.debug:
             print(
                 f'AvgOfWindow at {hex(id(self))} update after {time()-t1:.6f}s')
         for subscriber in self.subscribers:
             subscriber.notify()
 
-    def get_anomaly_score(self) -> np.ndarray:
-        return self.anomaly_score
+    def get_anomaly_scores(self) -> np.ndarray:
+        return self.anomaly_scores
 
     def add_subscriber(self, subscriber):
         self.subscribers.append(subscriber)
@@ -73,5 +73,5 @@ class AverageOfWindow(AbstractAnomalyScore):
             initial_nonconformity_scores=self.window.copy(),
             window_length=self.window_length,
             debug=self.debug)
-        new_instance.anomaly_score = self.anomaly_score
+        new_instance.anomaly_scores = self.anomaly_scores
         return new_instance
