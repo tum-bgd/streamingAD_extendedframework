@@ -7,7 +7,7 @@ from copy import deepcopy
 import pickle
 from typing import Callable
 
-from ..modelWrapper import ModelWrapper
+from modelWrapper import ModelWrapper
 
 
 class PCBIForest(ModelWrapper):

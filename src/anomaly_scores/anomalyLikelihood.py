@@ -5,10 +5,10 @@ from copy import copy
 from scipy import special
 from scipy.stats import norm
 
-from ..tsWindowPublisher import TsWindowPublisher
-from .abstractAnomalyScore import AbstractAnomalyScore
-from ..training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
-from ..nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
+from tsWindowPublisher import TsWindowPublisher
+from anomaly_scores.abstractAnomalyScore import AbstractAnomalyScore
+from training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
 
 """ AnomalyLikelihood 
 (from: Ahmad, S.; Purdy, S. Real-Time Anomaly Detection for Streaming Analytics. 

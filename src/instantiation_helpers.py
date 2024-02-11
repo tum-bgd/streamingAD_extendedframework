@@ -1,18 +1,18 @@
 import numpy as np
 from itertools import product
 
-from src.tsWindowPublisher import TsWindowPublisher
-from src.dataRepresentation import WindowStreamVectors
-from src.modelWrapper import ModelWrapper
-from src.models.simpleRegressionModel import get_simple_regression_model
-from src.models.usad import get_usad
-from src.models.onlineARIMA import get_online_arima
-from src.models.nbeats import get_nbeats
-from src.models.onlineVAR import OnlineVAR
-from src.nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
-from src.anomaly_scores.anomalyLikelihood import AnomalyLikelihood
-from src.anomaly_scores.confidenceLevels import ConfidenceLevels
-from src.anomaly_scores.averageOfWindow import AverageOfWindow
+from tsWindowPublisher import TsWindowPublisher
+from dataRepresentation import WindowStreamVectors
+from modelWrapper import ModelWrapper
+from models.simpleRegressionModel import get_simple_regression_model
+from models.usad import get_usad
+from models.onlineARIMA import get_online_arima
+from models.nbeats import get_nbeats
+from models.onlineVAR import OnlineVAR
+from nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
+from anomaly_scores.anomalyLikelihood import AnomalyLikelihood
+from anomaly_scores.confidenceLevels import ConfidenceLevels
+from anomaly_scores.averageOfWindow import AverageOfWindow
 
 
 def instantiate_model_wrappers(models_list: list, publisher: WindowStreamVectors, input_shape: "tuple[int]", debug=False):

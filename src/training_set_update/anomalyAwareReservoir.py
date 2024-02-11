@@ -1,8 +1,8 @@
 import numpy as np
 
-from ..dataRepresentation import WindowStreamVectors
-from .abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
-from .slidingWindow import sliding_window
+from dataRepresentation import WindowStreamVectors
+from training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from training_set_update.slidingWindow import sliding_window
 
 
 """ AnomalyAwareReservoir

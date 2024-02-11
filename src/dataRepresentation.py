@@ -1,7 +1,7 @@
 import numpy as np
 
-from .tsWindowPublisher import TsWindowPublisher
-from .abstractSubscriber import AbstractSubscriber
+from tsWindowPublisher import TsWindowPublisher
+from abstractSubscriber import AbstractSubscriber
 
 class WindowStreamVectors(AbstractSubscriber):
     def __init__(self, publisher: TsWindowPublisher, window_length: int, subscribers: "list[AbstractSubscriber]", debug=False) -> None:

@@ -1,7 +1,7 @@
 from abc import abstractmethod
 import numpy as np
 
-from ..abstractSubscriber import AbstractSubscriber
+from abstractSubscriber import AbstractSubscriber
 
 class AbstractTrainingSetAnalysisMethod(AbstractSubscriber):
     @abstractmethod

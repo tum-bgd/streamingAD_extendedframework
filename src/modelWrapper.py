@@ -3,8 +3,8 @@ import tensorflow as tf
 from copy import copy
 from tensorflow.python.keras.models import clone_model
 
-from .dataRepresentation import WindowStreamVectors
-from .models.nbeats import get_nbeats
+from dataRepresentation import WindowStreamVectors
+from models.nbeats import get_nbeats
 
 
 class ModelWrapper():

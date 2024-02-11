@@ -3,10 +3,10 @@ import numpy as np
 import pandas as pd
 from copy import copy
 
-from ..tsWindowPublisher import TsWindowPublisher
-from .abstractAnomalyScore import AbstractAnomalyScore
-from ..training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
-from ..nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
+from tsWindowPublisher import TsWindowPublisher
+from anomaly_scores.abstractAnomalyScore import AbstractAnomalyScore
+from training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
 
 
 class AverageOfWindow(AbstractAnomalyScore):

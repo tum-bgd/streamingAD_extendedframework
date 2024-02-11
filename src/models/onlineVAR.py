@@ -7,8 +7,8 @@ from copy import deepcopy
 import pickle
 from typing import Callable
 
-from ..dataRepresentation import WindowStreamVectors
-from ..modelWrapper import ModelWrapper
+from dataRepresentation import WindowStreamVectors
+from modelWrapper import ModelWrapper
 
 
 class OnlineVAR(ModelWrapper):

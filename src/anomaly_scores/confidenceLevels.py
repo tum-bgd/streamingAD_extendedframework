@@ -5,10 +5,10 @@ from copy import copy
 from scipy.stats import uniform, kstest
 from scipy import special
 
-from ..tsWindowPublisher import TsWindowPublisher
-from .abstractAnomalyScore import AbstractAnomalyScore
-from ..training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
-from ..nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
+from tsWindowPublisher import TsWindowPublisher
+from anomaly_scores.abstractAnomalyScore import AbstractAnomalyScore
+from training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
 
 """ ConfidenceLevels
 from Calikus, E.; Nowaczyk, S.; SantAnna, A.; Dikmen, O. No Free Lunch but a Cheaper Supper: A General Framework for Streaming Anomaly Detection. 

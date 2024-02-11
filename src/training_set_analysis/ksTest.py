@@ -1,14 +1,14 @@
 import numpy as np
 from scipy.stats import kstest
 
-from .abstractTrainingSetAnalysisMethod import AbstractTrainingSetAnalysisMethod
-from ..training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
-from ..training_set_update.anomalyAwareReservoir import AnomalyAwareReservoir
-from ..anomaly_scores.averageOfWindow import AverageOfWindow
-from ..anomaly_scores.anomalyLikelihood import AnomalyLikelihood
-from ..anomaly_scores.confidenceLevels import ConfidenceLevels
-from .muSigmaChange import MuSigmaChange
-from .saveWeightsPath import save_weights_paths
+from training_set_analysis.abstractTrainingSetAnalysisMethod import AbstractTrainingSetAnalysisMethod
+from training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from training_set_update.anomalyAwareReservoir import AnomalyAwareReservoir
+from anomaly_scores.averageOfWindow import AverageOfWindow
+from anomaly_scores.anomalyLikelihood import AnomalyLikelihood
+from anomaly_scores.confidenceLevels import ConfidenceLevels
+from training_set_analysis.muSigmaChange import MuSigmaChange
+from training_set_analysis.saveWeightsPath import save_weights_paths
 
 """ KsTest Training Set Analysis
 

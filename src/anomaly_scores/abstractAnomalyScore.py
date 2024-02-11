@@ -1,8 +1,8 @@
 import numpy as np
 from abc import abstractmethod
 
-from ..abstractSubscriber import AbstractSubscriber
-from ..training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from abstractSubscriber import AbstractSubscriber
+from training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
 
 class AbstractAnomalyScore(AbstractSubscriber):
     @abstractmethod

@@ -1,11 +1,11 @@
 import numpy as np
 
-from .abstractTrainingSetAnalysisMethod import AbstractTrainingSetAnalysisMethod
-from ..training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
-from ..anomaly_scores.averageOfWindow import AverageOfWindow
-from ..anomaly_scores.anomalyLikelihood import AnomalyLikelihood
-from ..anomaly_scores.confidenceLevels import ConfidenceLevels
-from .saveWeightsPath import save_weights_paths
+from training_set_analysis.abstractTrainingSetAnalysisMethod import AbstractTrainingSetAnalysisMethod
+from training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from anomaly_scores.averageOfWindow import AverageOfWindow
+from anomaly_scores.anomalyLikelihood import AnomalyLikelihood
+from anomaly_scores.confidenceLevels import ConfidenceLevels
+from training_set_analysis.saveWeightsPath import save_weights_paths
 
 
 class MuSigmaChange(AbstractTrainingSetAnalysisMethod):

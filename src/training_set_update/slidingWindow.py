@@ -1,7 +1,7 @@
 import numpy as np
 
-from ..dataRepresentation import WindowStreamVectors
-from .abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
+from dataRepresentation import WindowStreamVectors
+from training_set_update.abstractTrainingSetUpdateMethod import AbstractTrainingSetUpdateMethod
 
 class SlidingWindow(AbstractTrainingSetUpdateMethod):
     def __init__(self, publisher: WindowStreamVectors, reservoir_length: int, first_reservoir: np.ndarray, 
