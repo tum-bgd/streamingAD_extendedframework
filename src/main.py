@@ -90,7 +90,7 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
                     "object": NonConformityWrapper(
                         publisher=model,
                         subscribers=[],
-                        measure='cosine_sim',
+                        measure='cosine_sim' if model.model_type == 'reconstruction' else 'mean_abs_diff',
                         save_paths=initial_nonconformity_save_paths(
                             out_base_path=out_base_path,
                             date_id=datetime_this_run,

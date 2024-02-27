@@ -24,18 +24,22 @@ class NonConformityWrapper(AbstractSubscriber):
             if self.publisher.model_type == 'forecasting':
                 predictions = self.publisher.current_predictions[:, -1:]
                 to_predict = self.publisher.current_feature_vectors[:, -1:]
+                if self.current_feature_vectors.shape[2] > 1:
+                    measure = self.measure
+                else:
+                    measure = 'mean_abs_diff'
                 self.nonconformity_scores = calc_nonconformity_scores(
-                    to_predict, predictions, 'mean_abs_diff')
+                    to_predict, predictions, measure)
             elif self.publisher.model_type == 'reconstruction':
                 predictions = self.publisher.current_predictions
                 to_predict = self.publisher.current_feature_vectors
                 self.nonconformity_scores = calc_nonconformity_scores(to_predict, predictions, measure=self.measure)
-            if self.publisher.model_type == 'forecasting' or self.measure in ['euclidean', 'mean_abs_diff']:
+            if self.measure in ['euclidean', 'mean_abs_diff']:
                 max_ns = np.max(self.nonconformity_scores)
-                # if max_ns > self.max_value:
-                #     self.max_value = max_ns
-                # self.nonconformity_scores /= self.max_value
-                self.nonconformity_scores /= max_ns
+                if max_ns > self.max_value:
+                    self.max_value = max_ns
+                self.nonconformity_scores /= self.max_value
+                # self.nonconformity_scores /= max_ns
         elif self.publisher.model_type == 'iforest':
             self.nonconformity_scores = self.publisher.current_predictions
 

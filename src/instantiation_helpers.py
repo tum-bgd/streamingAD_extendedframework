@@ -7,7 +7,7 @@ from modelWrapper import ModelWrapper
 from models.simpleRegressionModel import get_simple_regression_model
 from models.usad import get_usad
 from models.onlineARIMA import get_online_arima
-from models.nbeats import get_nbeats
+# from models.nbeats import get_nbeats
 from models.onlineVAR import OnlineVAR
 from nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
 from anomaly_scores.anomalyLikelihood import AnomalyLikelihood
@@ -17,23 +17,23 @@ from anomaly_scores.averageOfWindow import AverageOfWindow
 
 def instantiate_model_wrappers(models_list: list, publisher: WindowStreamVectors, input_shape: "tuple[int]", debug=False):
     new_models = [
-        ModelWrapper(tf_model=get_simple_regression_model(input_shape=input_shape),
-                     publisher=publisher, subscribers=[], model_id='simple_regression',
-                     model_type='reconstruction', debug=debug),
+        # ModelWrapper(tf_model=get_simple_regression_model(input_shape=input_shape),
+        #              publisher=publisher, subscribers=[], model_id='simple_regression',
+        #              model_type='reconstruction', debug=debug),
         ModelWrapper(tf_model=get_usad(input_shape=input_shape, latent_size=input_shape[0]//10),
                      publisher=publisher, subscribers=[], model_id='usad',
                      model_type='reconstruction', debug=debug),
-        ModelWrapper(tf_model=get_online_arima(input_shape=(input_shape[0]-1, *input_shape[1:]), d=input_shape[0]//5),
-                     publisher=publisher, subscribers=[], model_id='online_arima',
-                     model_type='forecasting', debug=debug),
-        ModelWrapper(tf_model=get_nbeats(input_shape=(input_shape[0]-1, *input_shape[1:])),
-                     publisher=publisher, subscribers=[], model_id='nbeats',
-                     model_type='forecasting', debug=debug),
+        # ModelWrapper(tf_model=get_online_arima(input_shape=(input_shape[0]-1, *input_shape[1:]), d=input_shape[0]//5),
+        #              publisher=publisher, subscribers=[], model_id='online_arima',
+        #              model_type='forecasting', debug=debug),
+        # ModelWrapper(tf_model=get_nbeats(input_shape=(input_shape[0]-1, *input_shape[1:])),
+        #              publisher=publisher, subscribers=[], model_id='nbeats',
+        #              model_type='forecasting', debug=debug),
     ]
-    if input_shape[1] > 1:
-        new_models.append(
-            OnlineVAR(lag_order=10, publisher=publisher, subscribers=[], model_id='online_var',
-                      model_type='forecasting', debug=debug))
+    # if input_shape[1] > 1:
+    #     new_models.append(
+    #         OnlineVAR(lag_order=None, publisher=publisher, subscribers=[], model_id='online_var',
+    #                   model_type='forecasting', debug=debug))
     models_list.extend(new_models)
     publisher.add_subscribers(new_models)
     
@@ -59,66 +59,66 @@ def instantiate_anomaly_scores(ts_window_publisher: TsWindowPublisher, nonconfor
             short_term_length=anomaly_score_length//5,
             long_term_length=anomaly_score_length,
             debug=debug),
-        ConfidenceLevels(
-            publisher=nonconformity_score_wrapper,
-            ts_window_publisher=ts_window_publisher,
-            training_set_length=training_set_length,
-            training_set_publisher_id='sw_mu_sig',
-            subscribers=[],
-            save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['sw_mu_sig'], anomaly_score_ids=['confidence_levels']),
-            initial_nonconformity_scores=first_nonconformity_scores,
-            confidence_window_length=anomaly_score_length*5,
-            debug=debug),
-        ConfidenceLevels(
-            publisher=nonconformity_score_wrapper,
-            ts_window_publisher=ts_window_publisher,
-            training_set_length=training_set_length,
-            training_set_publisher_id='sw_ks',
-            subscribers=[],
-            save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['sw_ks'], anomaly_score_ids=['confidence_levels']),
-            initial_nonconformity_scores=first_nonconformity_scores,
-            confidence_window_length=anomaly_score_length*5,
-            debug=debug),
-        ConfidenceLevels(
-            publisher=nonconformity_score_wrapper,
-            ts_window_publisher=ts_window_publisher,
-            training_set_length=training_set_length,
-            training_set_publisher_id='ures_mu_sig',
-            subscribers=[],
-            save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['ures_mu_sig'], anomaly_score_ids=['confidence_levels']),
-            initial_nonconformity_scores=first_nonconformity_scores,
-            confidence_window_length=anomaly_score_length*5,
-            debug=debug),
-        ConfidenceLevels(
-            publisher=nonconformity_score_wrapper,
-            ts_window_publisher=ts_window_publisher,
-            training_set_length=training_set_length,
-            training_set_publisher_id='ures_ks',
-            subscribers=[],
-            save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['ures_ks'], anomaly_score_ids=['confidence_levels']),
-            initial_nonconformity_scores=first_nonconformity_scores,
-            confidence_window_length=anomaly_score_length*5,
-            debug=debug),
-        ConfidenceLevels(
-            publisher=nonconformity_score_wrapper,
-            ts_window_publisher=ts_window_publisher,
-            training_set_length=training_set_length,
-            training_set_publisher_id='ares_cl_mu_sig',
-            subscribers=[],
-            save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['ares_cl_mu_sig'], anomaly_score_ids=['confidence_levels']),
-            initial_nonconformity_scores=first_nonconformity_scores,
-            confidence_window_length=anomaly_score_length*5,
-            debug=debug),
-        ConfidenceLevels(
-            publisher=nonconformity_score_wrapper,
-            ts_window_publisher=ts_window_publisher,
-            training_set_length=training_set_length,
-            training_set_publisher_id='ares_cl_ks',
-            subscribers=[],
-            save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['ares_cl_ks'], anomaly_score_ids=['confidence_levels']),
-            initial_nonconformity_scores=first_nonconformity_scores,
-            confidence_window_length=anomaly_score_length*5,
-            debug=debug),
+        # ConfidenceLevels(
+        #     publisher=nonconformity_score_wrapper,
+        #     ts_window_publisher=ts_window_publisher,
+        #     training_set_length=training_set_length,
+        #     training_set_publisher_id='sw_mu_sig',
+        #     subscribers=[],
+        #     save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['sw_mu_sig'], anomaly_score_ids=['confidence_levels']),
+        #     initial_nonconformity_scores=first_nonconformity_scores,
+        #     confidence_window_length=anomaly_score_length*5,
+        #     debug=debug),
+        # ConfidenceLevels(
+        #     publisher=nonconformity_score_wrapper,
+        #     ts_window_publisher=ts_window_publisher,
+        #     training_set_length=training_set_length,
+        #     training_set_publisher_id='sw_ks',
+        #     subscribers=[],
+        #     save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['sw_ks'], anomaly_score_ids=['confidence_levels']),
+        #     initial_nonconformity_scores=first_nonconformity_scores,
+        #     confidence_window_length=anomaly_score_length*5,
+        #     debug=debug),
+        # ConfidenceLevels(
+        #     publisher=nonconformity_score_wrapper,
+        #     ts_window_publisher=ts_window_publisher,
+        #     training_set_length=training_set_length,
+        #     training_set_publisher_id='ures_mu_sig',
+        #     subscribers=[],
+        #     save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['ures_mu_sig'], anomaly_score_ids=['confidence_levels']),
+        #     initial_nonconformity_scores=first_nonconformity_scores,
+        #     confidence_window_length=anomaly_score_length*5,
+        #     debug=debug),
+        # ConfidenceLevels(
+        #     publisher=nonconformity_score_wrapper,
+        #     ts_window_publisher=ts_window_publisher,
+        #     training_set_length=training_set_length,
+        #     training_set_publisher_id='ures_ks',
+        #     subscribers=[],
+        #     save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['ures_ks'], anomaly_score_ids=['confidence_levels']),
+        #     initial_nonconformity_scores=first_nonconformity_scores,
+        #     confidence_window_length=anomaly_score_length*5,
+        #     debug=debug),
+        # ConfidenceLevels(
+        #     publisher=nonconformity_score_wrapper,
+        #     ts_window_publisher=ts_window_publisher,
+        #     training_set_length=training_set_length,
+        #     training_set_publisher_id='ares_cl_mu_sig',
+        #     subscribers=[],
+        #     save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['ares_cl_mu_sig'], anomaly_score_ids=['confidence_levels']),
+        #     initial_nonconformity_scores=first_nonconformity_scores,
+        #     confidence_window_length=anomaly_score_length*5,
+        #     debug=debug),
+        # ConfidenceLevels(
+        #     publisher=nonconformity_score_wrapper,
+        #     ts_window_publisher=ts_window_publisher,
+        #     training_set_length=training_set_length,
+        #     training_set_publisher_id='ares_cl_ks',
+        #     subscribers=[],
+        #     save_paths=save_paths(out_base_path, date_id, model_id, reservoir_ids=['ares_cl_ks'], anomaly_score_ids=['confidence_levels']),
+        #     initial_nonconformity_scores=first_nonconformity_scores,
+        #     confidence_window_length=anomaly_score_length*5,
+        #     debug=debug),
     ]
 
 def save_paths(out_base_path: str, date_id: str, model_id: str, reservoir_ids: "list[str]", anomaly_score_ids: "list[str]", filename='anomaly_scores.csv'):

@@ -43,7 +43,7 @@ class AnomalyLikelihood(AbstractAnomalyScore):
         self.threshold = threshold
         self.debug = debug
         
-        np.seterr(all='raise')
+        # np.seterr(all='raise')
 
     def update_parameters(self):
         nonconformity_scores = self.publisher.nonconformity_scores
