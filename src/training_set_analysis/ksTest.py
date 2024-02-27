@@ -74,7 +74,7 @@ class KsTest(AbstractTrainingSetAnalysisMethod):
         model_versions = [(i, x['version']) for i, x in enumerate(
             self.models) if model_id == x['object'].model_id]
         anomaly_score_id = None
-        if publisher_id in ['ares_al_mu_sig', 'ares_al_ks'] or model_id == 'pcb_iforest':
+        if publisher_id in ['ares_al_mu_sig', 'ares_al_ks'] or model_id in ['pcb_iforest', 'ensemble_gnn']:
             anomaly_score_id = 'anomaly_likelihood'
         elif publisher_id in ['ares_cl_mu_sig', 'ares_cl_ks']:
             anomaly_score_id = 'confidence_levels'

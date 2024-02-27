@@ -4,7 +4,7 @@ from copy import copy
 from tensorflow.python.keras.models import clone_model
 
 from dataRepresentation import WindowStreamVectors
-from models.nbeats import get_nbeats
+# from models.nbeats import get_nbeats
 
 
 class ModelWrapper():
@@ -77,9 +77,10 @@ class ModelWrapper():
         if self.model_id != 'nbeats':
             model_clone = clone_model(self.tf_model)
         else:
-            model_clone = get_nbeats(
-                input_shape=self.tf_model.input_shape)
-            model_clone.set_weights(self.tf_model.get_weights())
+            pass
+            # model_clone = get_nbeats(
+            #     input_shape=self.tf_model.input_shape)
+            # model_clone.set_weights(self.tf_model.get_weights())
         return ModelWrapper(
             tf_model=model_clone,
             publisher=self.publisher,

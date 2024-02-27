@@ -14,6 +14,10 @@ from nonconformity_scores.nonconformity_wrapper import NonConformityWrapper
 from Calikus, E.; Nowaczyk, S.; SantAnna, A.; Dikmen, O. No Free Lunch but a Cheaper Supper: A General Framework for Streaming Anomaly Detection. 
 Expert Systems with Applications 2020, 155, 113453. https://doi.org/10.1016/j.eswa.2020.113453.
 
+Note: This anomaly score should only be used in the case that the data representation vectors x_1, ..., x_t 
+satisfy the i.i.d. assumption. This is NOT the case if x_t contains previous stream vectors as in
+x_t = [s_{t-w+1}, ..., s_t]^T !
+
 This anomaly score method keeps the nonconformity scores corresponding to the instances inside the training set
 stored in memory. It calculates a confidence value at every time step, which is defined as
 c_t = (1/N) * |nc_i  >= nc_t : i in [1, N]|
