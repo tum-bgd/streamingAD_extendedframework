@@ -83,7 +83,7 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
         'ures_ks',
         # 'ares_al_mu_sig',
             'ares_al_ks']:
-        ensemble_length = 2
+        ensemble_length = 20
         model = EnsembleGNN(
             ensemble_length=ensemble_length,
             num_node_features=number_of_channels,
@@ -159,6 +159,7 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
             short_term_length=ANOMALY_SCORE_LENGTH//5,
             long_term_length=ANOMALY_SCORE_LENGTH,
             update_at_notify=[],
+            threshold=0.6,
             debug=DEBUG
         )
         new_entry["nonconformity_score"]['object'].add_subscriber(

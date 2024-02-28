@@ -145,36 +145,35 @@ class EnsembleGNNWrapper(ModelWrapper):
             for j in range(self.ensemble_length):
                 if anomaly_scores[i] > anomaly_threshold:
                     if individual_anomaly_scores[i, j] > anomaly_threshold:
-                        self.performance_counters[j] += 0.1
+                        self.performance_counters[j] = min(1.0, self.performance_counters[j] + 0.1)
                     else:
-                        self.performance_counters[j] -= 0.1
+                        self.performance_counters[j] = max(-1.0, self.performance_counters[j] - 0.1)
                 else:
                     if individual_anomaly_scores[i, j] > anomaly_threshold:
-                        self.performance_counters[j] -= 0.1
+                        self.performance_counters[j] = max(-1.0, self.performance_counters[j] - 0.1)
                     else:
-                        self.performance_counters[j] += 0.1
-            np.clip(self.performance_counters, -1., 1.)
+                        self.performance_counters[j] = min(1.0, self.performance_counters[j] + 0.1)
             
-    def update_performance_counters_with_nonconformity_scores(self, anomaly_threshold: float):
-        assert len(self.current_component_predictions.shape) == 4
-        assert len(self.current_feature_vectors.shape) == 3
-        feature_vectors = self.current_feature_vectors[:, np.newaxis]
-        individual_scores = calc_nonconformity_scores(feature_vectors, self.current_component_predictions, 'cosine_sim')
-        total_scores = calc_nonconformity_scores(self.current_feature_vectors, self.current_predictions, 'cosine_sim')
+    # def update_performance_counters_with_nonconformity_scores(self, anomaly_threshold: float):
+    #     assert len(self.current_component_predictions.shape) == 4
+    #     assert len(self.current_feature_vectors.shape) == 3
+    #     feature_vectors = self.current_feature_vectors[:, np.newaxis]
+    #     individual_scores = calc_nonconformity_scores(feature_vectors, self.current_component_predictions, 'cosine_sim')
+    #     total_scores = calc_nonconformity_scores(self.current_feature_vectors, self.current_predictions, 'cosine_sim')
         
-        for i in range(len(total_scores)):
-            for j in range(self.ensemble_length):
-                if total_scores[i] > anomaly_threshold:
-                    if individual_scores[i, j] > anomaly_threshold:
-                        self.performance_counters[j] += 0.1
-                    else:
-                        self.performance_counters[j] -= 0.1
-                else:
-                    if individual_scores[i, j] > anomaly_threshold:
-                        self.performance_counters[j] -= 0.1
-                    else:
-                        self.performance_counters[j] += 0.1
-            np.clip(self.performance_counters, -1., 1.)
+    #     for i in range(len(total_scores)):
+    #         for j in range(self.ensemble_length):
+    #             if total_scores[i] > anomaly_threshold:
+    #                 if individual_scores[i, j] > anomaly_threshold:
+    #                     self.performance_counters[j] += 0.1
+    #                 else:
+    #                     self.performance_counters[j] -= 0.1
+    #             else:
+    #                 if individual_scores[i, j] > anomaly_threshold:
+    #                     self.performance_counters[j] -= 0.1
+    #                 else:
+    #                     self.performance_counters[j] += 0.1
+    #         np.clip(self.performance_counters, -1., 1.)
 
     @override
     def factory_copy(self):
@@ -191,6 +190,7 @@ class EnsembleGNNWrapper(ModelWrapper):
     @override
     def save_model(self, save_path):
         torch.save(self.model.state_dict(), save_path)
+        np.savetxt(f'{save_path.rstrip(".h5")}_performance_counters.csv', self.performance_counters, delimiter=',')
 
 
 class EnsembleGNN(torch.nn.Module):
