@@ -31,6 +31,7 @@ class OnlineVAR(ModelWrapper):
         assert n_channels > 1
         model = VAR(x)
         self.model = model.fit(maxlags=50, ic='aic') if self.lag_order is None else model.fit(self.lag_order)
+        # self.model = model.fit(self.lag_order)
         if self.model.k_ar != 0:
             self.lag_order = self.model.k_ar
         else:
@@ -38,7 +39,7 @@ class OnlineVAR(ModelWrapper):
             raise Exception
         print(f'Trained VAR model with automatic lag order selection')
         print(self.model.summary())
-        
+
     @override
     def retraining(self, training_set):
         assert len(training_set.shape) == 3

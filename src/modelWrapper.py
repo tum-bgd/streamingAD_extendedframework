@@ -17,11 +17,15 @@ class ModelWrapper():
         self.model_type = model_type
         self.batch_size = 32
         self.output_index = None
+        self.epoch = 1
         self.debug = debug
 
         if self.model_type == 'reconstruction':
             # self.tf_model.build(input_shape=input_shape)
-            self.tf_model.compile(loss=tf.keras.losses.mae, optimizer="adam")
+            if self.model_id == 'usad':
+                self.tf_model.compile(loss=[tf.keras.losses.mse, tf.keras.losses.mse, tf.keras.losses.mse], loss_weights=[1/self.epoch, 1/self.epoch, 1 - 1/self.epoch], optimizer="adam")
+            else:
+                self.tf_model.compile(loss=tf.keras.losses.mae, optimizer="adam")
         if self.model_type == 'forecasting':
             # self.tf_model.build(input_shape=(input_shape[0]-1, input_shape[1]))
             self.tf_model.compile(loss=tf.keras.losses.mae, optimizer="adam")
@@ -32,14 +36,18 @@ class ModelWrapper():
     def train(self, x, epochs):
         x_tf = tf.convert_to_tensor(x)
         if self.model_type == 'reconstruction':
-            history = self.tf_model.fit(
-                x_tf, x_tf, batch_size=self.batch_size, epochs=epochs)
+            for i in range(epochs):
+                history = self.tf_model.fit(
+                    x_tf, x_tf, batch_size=self.batch_size, epochs=1)
+                self.epoch += 1
             if self.model_id == 'usad':
                 self._set_output_index(
                     np.argmin(np.array(list(history.history.values())[1:])[:, -1]))
         if self.model_type == 'forecasting':
-            self.tf_model.fit(x_tf[:, :-1], x_tf[:, -1:],
-                              batch_size=self.batch_size, epochs=epochs)
+            for i in range(epochs):
+                self.tf_model.fit(x_tf[:, :-1], x_tf[:, -1:],
+                                  batch_size=self.batch_size, epochs=1)
+                self.epoch += 1
 
     def predict_current(self):
         self.current_feature_vectors = self.publisher.feature_vectors
@@ -68,7 +76,7 @@ class ModelWrapper():
         self.subscribers.append(subscriber)
 
     def retraining(self, training_set):
-        self.train(training_set, 1)
+        self.train(training_set, 5)
 
     def save_model(self, save_path):
         self.tf_model.save_weights(save_path)

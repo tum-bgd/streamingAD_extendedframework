@@ -41,7 +41,6 @@ class NonConformityWrapper(AbstractSubscriber):
                 to_predict = self.publisher.current_feature_vectors
                 self.nonconformity_scores = calc_nonconformity_scores(
                     to_predict, predictions, measure=self.measure)
-                    
         elif self.publisher.model_type == 'iforest':
             self.nonconformity_scores = self.publisher.current_predictions
 

@@ -4,6 +4,7 @@ import pandas as pd
 import copy
 from time import time
 from datetime import datetime
+import tensorflow as tf
 
 from tsWindowPublisher import TsWindowPublisher
 from dataRepresentation import WindowStreamVectors
@@ -18,6 +19,9 @@ from anomaly_scores.anomalyLikelihood import AnomalyLikelihood
 from instantiation_helpers import instantiate_model_wrappers, instantiate_anomaly_scores, initial_nonconformity_save_paths, save_paths
 from models.onlineVAR import OnlineVAR
 # from src.models.onlineIsolationForest import PCBIForest
+
+# from keras import __version__
+# tf.keras.__version__ = __version__
 
 
 DEBUG = False
@@ -42,7 +46,11 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
     input_shape = (data_representation_length, number_of_channels)
     ts_window_subscribers = []
     ts_window_publisher = TsWindowPublisher(
-        dataset=dataset_test, window_length=TS_MEMORY_LENGTH, subscribers=ts_window_subscribers, debug=DEBUG)
+        dataset=dataset_test,
+        window_length=TS_MEMORY_LENGTH,
+        subscribers=ts_window_subscribers,
+        base_anomaly_save_path=f'{out_base_path}/artificial_anomalies/{datetime_this_run}',
+        debug=DEBUG)
 
     # 2) Set up data representation
     data_representation_subscribers = []
@@ -118,49 +126,49 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
                                     model_id='all', debug=DEBUG),
             "subscribers": []
         },
-        {
-            "id": "sw_ks",
-            "model_id": "all",
-            "object": SlidingWindow(publisher=data_representation, reservoir_length=training_set_length,
-                                    first_reservoir=first_training_set, subscribers=[], id="sw_ks", 
-                                    model_id='all', debug=DEBUG),
-            "subscribers": []
-        },
-        {
-            "id": "ures_mu_sig",
-            "model_id": "all",
-            "object": UniformReservoir(publisher=data_representation, reservoir_length=training_set_length,
-                                    first_reservoir=first_training_set, subscribers=[], id="ures_mu_sig", 
-                                    model_id='all', debug=DEBUG),
-            "subscribers": []
-        },
-        {
-            "id": "ures_ks",
-            "model_id": "all",
-            "object": UniformReservoir(publisher=data_representation, reservoir_length=training_set_length,
-                                    first_reservoir=first_training_set, subscribers=[], id="ures_ks", 
-                                    model_id='all', debug=DEBUG),
-            "subscribers": []
-        }
+        # {
+        #     "id": "sw_ks",
+        #     "model_id": "all",
+        #     "object": SlidingWindow(publisher=data_representation, reservoir_length=training_set_length,
+        #                             first_reservoir=first_training_set, subscribers=[], id="sw_ks", 
+        #                             model_id='all', debug=DEBUG),
+        #     "subscribers": []
+        # },
+        # {
+        #     "id": "ures_mu_sig",
+        #     "model_id": "all",
+        #     "object": UniformReservoir(publisher=data_representation, reservoir_length=training_set_length,
+        #                             first_reservoir=first_training_set, subscribers=[], id="ures_mu_sig", 
+        #                             model_id='all', debug=DEBUG),
+        #     "subscribers": []
+        # },
+        # {
+        #     "id": "ures_ks",
+        #     "model_id": "all",
+        #     "object": UniformReservoir(publisher=data_representation, reservoir_length=training_set_length,
+        #                             first_reservoir=first_training_set, subscribers=[], id="ures_ks", 
+        #                             model_id='all', debug=DEBUG),
+        #     "subscribers": []
+        # }
     ])
-    variables_data_rep['training_set_update_methods'].extend([
-        {
-            "id": f"ares_{anomaly_score_id}_{training_set_analysis_id}",
-            "model_id": model['object'].model_id,
-            "object": AnomalyAwareReservoir(
-                publisher=data_representation,
-                reservoir_length=training_set_length,
-                first_reservoir=first_training_set,
-                subscribers=[
-                ], id=f"ares_{anomaly_score_id}_{training_set_analysis_id}",
-                model_id=model['object'].model_id,
-                debug=DEBUG),
-            "subscribers": []
-        }
-        for training_set_analysis_id in ['mu_sig', 'ks']
-        for anomaly_score_id in ['al', 'cl']
-        for model in variables_data_rep['models']
-    ])
+    # variables_data_rep['training_set_update_methods'].extend([
+    #     {
+    #         "id": f"ares_{anomaly_score_id}_{training_set_analysis_id}",
+    #         "model_id": model['object'].model_id,
+    #         "object": AnomalyAwareReservoir(
+    #             publisher=data_representation,
+    #             reservoir_length=training_set_length,
+    #             first_reservoir=first_training_set,
+    #             subscribers=[
+    #             ], id=f"ares_{anomaly_score_id}_{training_set_analysis_id}",
+    #             model_id=model['object'].model_id,
+    #             debug=DEBUG),
+    #         "subscribers": []
+    #     }
+    #     for training_set_analysis_id in ['mu_sig', 'ks']
+    #     for anomaly_score_id in ['al', 'cl']
+    #     for model in variables_data_rep['models']
+    # ])
     data_representation.add_subscribers([
         training_set_update_method['object']
         for training_set_update_method in variables_data_rep['training_set_update_methods']
@@ -177,7 +185,10 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
                             models=variables_data_rep['models'],
                             out_base_path=out_base_path,
                             date_id=datetime_this_run,
-                            check_every=CHECK_TRAINING_SET_EVERY, debug=DEBUG),
+                            check_every=CHECK_TRAINING_SET_EVERY, 
+                            create_new_model_after_every_retraining=True,
+                            execute_after_retraining=ts_window_publisher.insert_artificial_anomaly,
+                            debug=DEBUG),
             )
         if entry['id'] in ['sw_ks', 'ures_ks', 'ares_al_ks', 'ares_cl_ks']:
             new_subscribers.append(
@@ -185,7 +196,10 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
                     models=variables_data_rep['models'], alpha=0.05,
                     out_base_path=out_base_path,
                     date_id=datetime_this_run,
-                    check_every=CHECK_TRAINING_SET_EVERY, debug=DEBUG)
+                    check_every=CHECK_TRAINING_SET_EVERY,
+                    create_new_model_after_every_retraining=True,
+                    execute_after_retraining=ts_window_publisher.insert_artificial_anomaly,
+                    debug=DEBUG)
             )
         entry['subscribers'].extend(new_subscribers)
         entry['object'].add_subscribers(new_subscribers)
@@ -346,7 +360,15 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
 
 
 if __name__ == '__main__':
-    dataset_category = 'univariate'
-    collection_id = 'KDD_TSAD'
-    dataset_id = '001_UCR_Anomaly_DISTORTED1sddb40'
-    main(dataset_category, collection_id, dataset_id)
+    dataset_category = 'multivariate'
+    collection_id = 'Daphnet'
+    data_folder_path = 'data'
+    out_folder_path = f'out/{dataset_category}/{collection_id}/experiment1'
+    for dataset_id in sorted(list(set([x.split('.')[0] for x in os.listdir(f'data/{dataset_category}/{collection_id}') if not x.startswith('.')])))[5:6]:
+        print(f'Dataset id: {dataset_id}')
+        main(
+            data_folder_path,
+            out_folder_path,
+            dataset_category,
+            collection_id,
+            dataset_id)

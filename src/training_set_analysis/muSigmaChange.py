@@ -9,7 +9,8 @@ from training_set_analysis.saveWeightsPath import save_weights_paths
 
 
 class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
-    def __init__(self, publisher: AbstractTrainingSetUpdateMethod, models: list, out_base_path: str, date_id: str, check_every=10, debug=False) -> None:
+    def __init__(self, publisher: AbstractTrainingSetUpdateMethod, models: list, out_base_path: str, date_id: str, check_every=10, 
+                 execute_after_retraining=None, create_new_model_after_every_retraining=False, debug=False) -> None:
         self.publisher = publisher
         self.models = models
         self.reset_all_mu_sigma()
@@ -17,6 +18,8 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
         self.save_weights_after_retraining = True
         self.out_base_path = out_base_path
         self.date_id = date_id
+        self.create_new_model_after_every_retraining = create_new_model_after_every_retraining
+        self.execute_after_retraining = execute_after_retraining
         self.counter = 0
         self.debug = debug
 
@@ -66,6 +69,8 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
                 self.retrain_model_and_rearrange_variables_tree(
                     model_id=model_id)
             self.reset_all_mu_sigma()
+            if self.execute_after_retraining is not None:
+                self.execute_after_retraining()
 
     def retrain_model_and_rearrange_variables_tree(self, model_id):
         publisher_id = self.publisher.id
@@ -77,7 +82,7 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
             anomaly_score_id = 'anomaly_likelihood'
         elif publisher_id in ['ares_cl_mu_sig', 'ares_cl_ks']:
             anomaly_score_id = 'confidence_levels'
-        if publisher_id in [x[1] for x in model_versions]:
+        if publisher_id in [x[1] for x in model_versions] and not self.create_new_model_after_every_retraining:
             model_idx = [x[0]
                          for x in model_versions if x[1] == publisher_id][0]
             self.models[model_idx]['object'].retraining(training_set)
@@ -97,9 +102,10 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
             model_idx = [x[0]
                          for x in model_versions if x[1] == 'constant_weights'][0]
             model = self.models[model_idx]
+            version = publisher_id if not self.create_new_model_after_every_retraining else f'{publisher_id}-{self.publisher.get_update_index()}'
             new_branch = {
                 "object": model['object'].factory_copy(),
-                "version": publisher_id
+                "version": version
             }
             data_representation = model['object'].publisher
             data_representation.add_subscriber(new_branch['object'])
@@ -175,7 +181,7 @@ class MuSigmaChange(AbstractTrainingSetAnalysisMethod):
                     filename=f'{model_id}-musigma-step{self.publisher.get_update_index()}.h5',
                 )
                 for save_path in save_paths:
-                    model['object'].save_model(save_path=save_path)
+                    new_branch['object'].save_model(save_path=save_path)
 
     def calc_std(self, var: np.ndarray):
         return np.sqrt(np.clip(var, 1e-6, 1e+20))
