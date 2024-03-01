@@ -1,10 +1,12 @@
 import os
 from typing import Callable
 import numpy as np
+import pandas as pd
 from typing_extensions import override
 from copy import copy, deepcopy
 import torch
 import torch.nn.functional as F
+from torch.nn import Linear
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 from torch_geometric.nn import GCNConv
@@ -16,7 +18,7 @@ from nonconformity_scores.nonconformity_wrapper import calc_nonconformity_scores
 
 class EnsembleGNNWrapper(ModelWrapper):
     def __init__(self, publisher: WindowStreamVectors, subscribers: list, model_id: str,
-                 model_type: str, window_length: int, ensemble_length: int, model=None, debug=False) -> None:
+                 model_type: str, window_length: int, ensemble_length: int, model=None, save_paths=None, debug=False) -> None:
         self.subscribers = subscribers
         self.publisher = publisher
         self.model_id = model_id
@@ -30,12 +32,13 @@ class EnsembleGNNWrapper(ModelWrapper):
             'cuda' if torch.cuda.is_available() else 'cpu')
         self.model = model.to(self.device)
         self.performance_counters = np.zeros((ensemble_length))
+        self.save_paths = save_paths
         self.debug = debug
 
         self._sample_edge_indices()
 
     def _sample_edge_indices(self):
-        lam = 3
+        lam = 0.1
         self.edge_indices_list = []
         for i in range(self.ensemble_length):
             edges = []
@@ -45,9 +48,9 @@ class EnsembleGNNWrapper(ModelWrapper):
                 edges.append((j, j+1))
             for j in range(0, self.window_length):
                 start, end = j+2, self.window_length-2
-                num_potential_edges = end - start
+                num_potential_edges = (1/2) * (self.window_length - 1) * (self.window_length - 2)
                 for k in range(start, end):
-                    if np.random.random() < np.exp(-lam * (end - k) / num_potential_edges):
+                    if np.random.random() < np.exp(-lam * (end - k)): # / num_potential_edges:
                         edges.append((j, k))
             self.edge_indices_list.append(torch.tensor([
                 [edges[j][0] for j in range(len(edges))],
@@ -87,6 +90,7 @@ class EnsembleGNNWrapper(ModelWrapper):
                         loss += criterion(out[j], getattr(data, f'inp_{j}'))
                     loss.backward()
                     optimizer.step()
+            self.model.eval()
 
     @override
     def retraining(self, training_set):
@@ -141,6 +145,7 @@ class EnsembleGNNWrapper(ModelWrapper):
         
         individual_anomaly_scores = anomaly_score_fn(individual_scores)
         anomaly_scores = anomaly_score_fn(total_scores)
+        self.save_component_scores(individual_anomaly_scores, [f'anomaly_scores_{j}' for j in range(self.ensemble_length)])
         for i in range(len(anomaly_scores)):
             for j in range(self.ensemble_length):
                 if anomaly_scores[i] > anomaly_threshold:
@@ -153,27 +158,20 @@ class EnsembleGNNWrapper(ModelWrapper):
                         self.performance_counters[j] = max(-1.0, self.performance_counters[j] - 0.1)
                     else:
                         self.performance_counters[j] = min(1.0, self.performance_counters[j] + 0.1)
-            
-    # def update_performance_counters_with_nonconformity_scores(self, anomaly_threshold: float):
-    #     assert len(self.current_component_predictions.shape) == 4
-    #     assert len(self.current_feature_vectors.shape) == 3
-    #     feature_vectors = self.current_feature_vectors[:, np.newaxis]
-    #     individual_scores = calc_nonconformity_scores(feature_vectors, self.current_component_predictions, 'cosine_sim')
-    #     total_scores = calc_nonconformity_scores(self.current_feature_vectors, self.current_predictions, 'cosine_sim')
-        
-    #     for i in range(len(total_scores)):
-    #         for j in range(self.ensemble_length):
-    #             if total_scores[i] > anomaly_threshold:
-    #                 if individual_scores[i, j] > anomaly_threshold:
-    #                     self.performance_counters[j] += 0.1
-    #                 else:
-    #                     self.performance_counters[j] -= 0.1
-    #             else:
-    #                 if individual_scores[i, j] > anomaly_threshold:
-    #                     self.performance_counters[j] -= 0.1
-    #                 else:
-    #                     self.performance_counters[j] += 0.1
-    #         np.clip(self.performance_counters, -1., 1.)
+
+    def save_component_scores(self, scores, column_keys):
+        update_index = self.publisher.publisher.get_update_index()
+        for save_path in self.save_paths:
+            parent_dir = '/'.join(save_path.split('/')[:-1])
+            if not os.path.exists(parent_dir):
+                os.makedirs(parent_dir)
+            entry = pd.DataFrame(scores, columns=column_keys, 
+                                 index=[i for i in range(update_index-len(scores)+1, update_index+1)])
+            if not os.path.exists(save_path):
+                entry.index.name = 'counter'
+                entry.to_csv(save_path, mode='w')
+            else:
+                entry.to_csv(save_path, mode='a', header=False)
 
     @override
     def factory_copy(self):
@@ -194,13 +192,20 @@ class EnsembleGNNWrapper(ModelWrapper):
 
 
 class EnsembleGNN(torch.nn.Module):
-    def __init__(self, ensemble_length, num_node_features):
+    def __init__(self, ensemble_length, window_length, num_node_features):
         super().__init__()
         self.ensemble_length = ensemble_length
+        self.window_length = window_length
         self.num_node_features = num_node_features
         for i in range(ensemble_length):
             setattr(self, f"conv_{i}_1", GCNConv(num_node_features, 16))
-            setattr(self, f"conv_{i}_2", GCNConv(16, num_node_features))
+            setattr(self, f"conv_{i}_2", GCNConv(16, 8))
+            setattr(self, f"conv_{i}_3", GCNConv(8, 4))
+            setattr(self, f"linear_{i}_1", Linear(4, 25))
+            setattr(self, f"linear_{i}_2", Linear(25, num_node_features))
+            # setattr(self, f"conv_{i}_4", GCNConv(4, 8))
+            # setattr(self, f"conv_{i}_5", GCNConv(8, 16))
+            # setattr(self, f"conv_{i}_6", GCNConv(16, num_node_features))
 
     def forward(self, data):
         out = []
@@ -208,10 +213,18 @@ class EnsembleGNN(torch.nn.Module):
             x, edge_index = getattr(data, f'inp_{i}'), getattr(
                 data, f'edge_index_{i}')
 
-            x = getattr(self, f"conv_{i}_1")(x, edge_index)
+            for j in range(1, 4):
+                x = getattr(self, f"conv_{i}_{j}")(x, edge_index)
+                x = F.relu(x)
+                x = F.dropout(x, training=self.training)
+            # out.append(getattr(self, f"conv_{i}_6")(x, edge_index))
+            # x = torch.reshape(x, (*x.shape[:-2], 4 * self.window_length))
+            x = getattr(self, f"linear_{i}_1")(x)
             x = F.relu(x)
             x = F.dropout(x, training=self.training)
-            out.append(getattr(self, f"conv_{i}_2")(x, edge_index))
+            x = getattr(self, f"linear_{i}_2")(x)
+            # x = torch.reshape(x, (*x.shape[:-1], self.window_length, self.num_node_features))
+            out.append(x)
 
         return out
 

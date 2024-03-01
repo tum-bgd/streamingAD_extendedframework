@@ -18,6 +18,14 @@ from utils import save_paths
 from models.gnn_ensembles import EnsembleGNN, EnsembleGNNWrapper
 
 
+# TODO:
+#   1) Insert x artificial anomalies at beginning of stream
+#       --> also record component nonconformity / anomaly scores
+#       --> investigate how large the difference in nonconformity / anomaly scores is for components vs ensemble
+#           --> adapt performance counters for them to make sense given this knowledge
+#       --> check on actual anomalies
+
+
 DEBUG = False
 # if batch_size is set, this refers to number of batches before check is performed
 CHECK_TRAINING_SET_EVERY = 50
@@ -45,7 +53,11 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
     input_shape = (data_representation_length, number_of_channels)
     ts_window_subscribers = []
     ts_window_publisher = TsWindowPublisher(
-        dataset=dataset_test, window_length=TS_MEMORY_LENGTH, subscribers=ts_window_subscribers, debug=DEBUG)
+        dataset=dataset_test, 
+        window_length=TS_MEMORY_LENGTH, 
+        subscribers=ts_window_subscribers, 
+        base_anomaly_save_path=f'{out_base_path}/artificial_anomalies/{datetime_this_run}',
+        debug=DEBUG)
 
     # 2) Set up data representation
     data_representation_subscribers = []
@@ -83,10 +95,11 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
         'ures_ks',
         # 'ares_al_mu_sig',
             'ares_al_ks']:
-        ensemble_length = 20
+        ensemble_length = 5
         model = EnsembleGNN(
             ensemble_length=ensemble_length,
             num_node_features=number_of_channels,
+            window_length=data_representation_length,
         )
         model_wrapper = EnsembleGNNWrapper(
             publisher=data_representation,
@@ -96,6 +109,8 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
             window_length=data_representation_length,
             ensemble_length=ensemble_length,
             model=model,
+            save_paths=save_paths(out_base_path, datetime_this_run, model_id, reservoir_ids=[
+                    version], anomaly_score_ids=['anomaly_likelihood'], filename='component_anomaly_scores.csv'),
             debug=DEBUG
         )
         print(f'Training of ensemble_gnn model for version {version}')
@@ -181,6 +196,11 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
 
         variables_data_rep['models'].append(new_entry)
 
+    # 4.5) Insert artificial anomalies
+    offsets = [500, 1000, 1500, 2000, 2500, 3000]
+    for offset in offsets:
+        ts_window_publisher.insert_artificial_anomaly(offset=offset)
+
     # 5) Iteration over test set - update once all anomaly_scores returned a notification
     dataset_len = len(ts_window_publisher.dataset)
     t = time()
@@ -197,12 +217,14 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
 
 if __name__ == '__main__':
     dataset_category = 'multivariate'
-    collection_id = 'SMD'
-    dataset_id = 'machine-1-2'
-    main(
-        data_folder_path='data',
-        out_folder_path='out',
-        dataset_category=dataset_category,
-        collection_id=collection_id,
-        dataset_id=dataset_id,
-    )
+    collection_id = 'Daphnet'
+    data_folder_path = 'data'
+    out_folder_path = f'out'
+    for dataset_id in sorted(list(set([x.split('.')[0] for x in os.listdir(f'data/{dataset_category}/{collection_id}') if not x.startswith('.')]))):
+        print(f'Dataset id: {dataset_id}')
+        main(
+            data_folder_path,
+            out_folder_path,
+            dataset_category,
+            collection_id,
+            dataset_id)

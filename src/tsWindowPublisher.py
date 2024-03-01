@@ -31,8 +31,7 @@ class TsWindowPublisher:
             subscriber.notify(step_size=step_size)
         return 0
 
-    def insert_artificial_anomaly(self):
-        offset = 100
+    def insert_artificial_anomaly(self, offset=100):
         size, up, plateau, goals = 20, 8, 0, [10.0]
         samples, channels = self.dataset.shape
         down = size - up - plateau
@@ -60,7 +59,7 @@ class TsWindowPublisher:
                 os.makedirs(self.base_anomaly_save_path)
             entry = pd.DataFrame(self.dataset[pos - (size + plateau) // 2:pos + (size + plateau) // 2], columns=[
                 f'ch{ch}' for ch in range(channels)], index=[i for i in range(pos - (size + plateau) // 2, pos + (size + plateau) // 2)])
-            save_path = f'{self.base_anomaly_save_path}/anomaly_{pos - (size + plateau) // 2}-{pos + (size + plateau) // 2}'
+            save_path = f'{self.base_anomaly_save_path}/anomaly_{pos - (size + plateau) // 2}-{pos + (size + plateau) // 2}.csv'
             if not os.path.exists(save_path):
                 entry.index.name = 'update_index'
                 entry.to_csv(save_path, mode='w')
