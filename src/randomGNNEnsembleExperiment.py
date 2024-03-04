@@ -34,9 +34,9 @@ ANOMALY_SCORE_LENGTH = 50
 TS_MEMORY_LENGTH = 6000
 
 
-def main(data_folder_path: str, out_folder_path: str, dataset_category: str, collection_id: str, dataset_id: str, batch_size=50, training_set_length=5000, data_representation_length=100) -> None:
+def main(data_folder_path: str, out_folder_path: str, dataset_category: str, collection_id: str, dataset_id: str, batch_size=50, training_set_length=5000, data_representation_length=100, date_id=None) -> None:
     # 0) Results location path structure: out / {collection_id} / {dataset_id} / {model_id}-{training_set_update}-{training_set_analysis}-{anomaly_score} / {datetime}
-    datetime_this_run = datetime.now().strftime("%Y%m%d_%H%M%S")
+    datetime_this_run = datetime.now().strftime("%Y%m%d_%H%M%S") if date_id is None else date_id
     dataset_base_path = f'{data_folder_path}/{dataset_category}/{collection_id}/{dataset_id}'
     out_base_path = f'{out_folder_path}/{collection_id}/{dataset_id}'
     initial_weights_path = f'{out_base_path}/initial_weights/{datetime_this_run}'
@@ -95,11 +95,12 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
         'ures_ks',
         # 'ares_al_mu_sig',
             'ares_al_ks']:
-        ensemble_length = 5
+        ensemble_length = 1
         model = EnsembleGNN(
             ensemble_length=ensemble_length,
             num_node_features=number_of_channels,
             window_length=data_representation_length,
+            batch_size=32,
         )
         model_wrapper = EnsembleGNNWrapper(
             publisher=data_representation,
@@ -108,6 +109,7 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
             model_type=model_type,
             window_length=data_representation_length,
             ensemble_length=ensemble_length,
+            batch_size=32,
             model=model,
             save_paths=save_paths(out_base_path, datetime_this_run, model_id, reservoir_ids=[
                     version], anomaly_score_ids=['anomaly_likelihood'], filename='component_anomaly_scores.csv'),
@@ -216,15 +218,19 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
 
 
 if __name__ == '__main__':
+    datetime_this_run = datetime.now().strftime("%Y%m%d_%H%M%S")
     dataset_category = 'multivariate'
     collection_id = 'Daphnet'
     data_folder_path = 'data'
     out_folder_path = f'out'
-    for dataset_id in sorted(list(set([x.split('.')[0] for x in os.listdir(f'data/{dataset_category}/{collection_id}') if not x.startswith('.')]))):
+    for dataset_id in sorted(list(set([x.split('.')[0] for x in 
+                                       os.listdir(f'data/{dataset_category}/{collection_id}') if not x.startswith('.')]))):
         print(f'Dataset id: {dataset_id}')
         main(
             data_folder_path,
             out_folder_path,
             dataset_category,
             collection_id,
-            dataset_id)
+            dataset_id,
+            data_representation_length=100,
+            date_id=datetime_this_run)
