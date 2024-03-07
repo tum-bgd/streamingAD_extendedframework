@@ -66,7 +66,7 @@ class EnsembleGNNWrapper(ModelWrapper):
             
     def _sample_edge_indices_by_routes(self):
         input_len = output_len = 100
-        between_len= 800
+        between_len= 100
         routes_per_component = 30
         component_target_len = 10
         max_route_len = 20
@@ -82,10 +82,14 @@ class EnsembleGNNWrapper(ModelWrapper):
                 nodes_idx = np.random.randint(0, len(comp_start_nodes))
                 j = comp_start_nodes[nodes_idx]
                 k = 0
+                comp_offset = comp_idx * int(between_len / self.ensemble_length)
+                edges.append((j, j + comp_offset))
+                j += comp_offset
+                k += 1
                 while j < comp_end_nodes[nodes_idx]:
                     draw = np.random.random()
                     next_node_offset = int(1 + -np.ceil(np.log2(draw)))
-                    next_node_offset *= 3
+                    next_node_offset *= 1
                     edges.append((j, min(j + next_node_offset, comp_end_nodes[nodes_idx])))
                     j += next_node_offset
                     k += 1
