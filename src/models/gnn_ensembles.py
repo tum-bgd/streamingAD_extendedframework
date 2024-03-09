@@ -18,7 +18,7 @@ from nonconformity_scores.nonconformity_wrapper import calc_nonconformity_scores
 
 class EnsembleGNNWrapper(ModelWrapper):
     def __init__(self, publisher: WindowStreamVectors, subscribers: list, model_id: str,
-                 model_type: str, window_length: int, ensemble_length: int, model=None, save_paths=None, batch_size=32, debug=False) -> None:
+                 model_type: str, window_length: int, number_of_channels: int, ensemble_length: int, model=None, save_paths=None, batch_size=32, debug=False) -> None:
         self.subscribers = subscribers
         self.publisher = publisher
         self.model_id = model_id
@@ -26,18 +26,74 @@ class EnsembleGNNWrapper(ModelWrapper):
         self.model = None
         self.dataset_train = None
         self.window_length = window_length
-        self.nodes_between_length = 800
+        self.num_latent_nodes = 10
+        self.num_latent_node_features = 4
+        self.number_of_channels = number_of_channels
+        self.nodes_between_length = 100
+        self.total_length = self.window_length + self.nodes_between_length + self.num_latent_nodes
         self.ensemble_length = ensemble_length
         self.edge_indices_list = None
         self.device = torch.device(
             'cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = model.to(self.device)
+        # self.model = model.to(self.device)
+        self.encoder = EnsembleGNN(
+            input_length=self.window_length,
+            between_length=self.nodes_between_length,
+            output_length=self.num_latent_nodes,
+            ensemble_length=ensemble_length,
+            num_node_features_input=number_of_channels,
+            num_node_features_output=self.num_latent_node_features,
+            edge_idx_base_key='enc_edge_index',
+            batch_size=batch_size,
+        )
+        self.decoder1 = EnsembleGNN(
+            input_length=self.num_latent_nodes,
+            between_length=self.nodes_between_length,
+            output_length=self.window_length,
+            ensemble_length=ensemble_length,
+            num_node_features_input=self.num_latent_node_features,
+            num_node_features_output=number_of_channels,
+            edge_idx_base_key='dec1_edge_index',
+            batch_size=batch_size,
+        )
+        self.decoder2 = EnsembleGNN(
+            input_length=self.num_latent_nodes,
+            between_length=self.nodes_between_length,
+            output_length=self.window_length,
+            ensemble_length=ensemble_length,
+            num_node_features_input=self.num_latent_node_features,
+            num_node_features_output=number_of_channels,
+            edge_idx_base_key='dec2_edge_index',
+            batch_size=batch_size,
+        )
         self.performance_counters = np.zeros((ensemble_length))
         self.save_paths = save_paths
         self.batch_size = batch_size
         self.debug = debug
+        
+        self.epoch = 1
 
-        self._sample_edge_indices_by_routes()
+        self.encoder_edge_indices_list = []
+        self.decoder1_edge_indices_list = []
+        self.decoder2_edge_indices_list = []
+        self._sample_edge_indices_by_routes(
+            edge_indices_list=self.encoder_edge_indices_list,
+            input_length=self.window_length,
+            between_length=self.nodes_between_length,
+            output_length=self.num_latent_nodes,
+        )
+        self._sample_edge_indices_by_routes(
+            edge_indices_list=self.decoder1_edge_indices_list,
+            input_length=self.num_latent_nodes,
+            between_length=self.nodes_between_length,
+            output_length=self.window_length,
+        )
+        self._sample_edge_indices_by_routes(
+            edge_indices_list=self.decoder2_edge_indices_list,
+            input_length=self.num_latent_nodes,
+            between_length=self.nodes_between_length,
+            output_length=self.window_length,
+        )
 
     def _sample_edge_indices(self):
         lam = 3
@@ -64,39 +120,37 @@ class EnsembleGNNWrapper(ModelWrapper):
                 [edges[j][1] for j in range(len(edges))]
             ]))
             
-    def _sample_edge_indices_by_routes(self):
-        input_len = output_len = 100
-        between_len= 100
-        routes_per_component = 30
-        component_target_len = 10
+    def _sample_edge_indices_by_routes(self, edge_indices_list, input_length, output_length, between_length):
+        routes_per_component = 10
+        component_start_target_len = 10
+        component_end_target_len = 2
         max_route_len = 20
-        start_nodes = np.arange(0, input_len)
-        end_nodes = np.arange(input_len + between_len, input_len + between_len + output_len)
-        self.edge_indices_list = []
+        start_nodes = np.arange(0, input_length)
+        end_nodes = np.arange(input_length + between_length, input_length + between_length + output_length)
         for comp_idx in range(self.ensemble_length):
-            comp_start_idx = comp_idx * int(input_len / self.ensemble_length)
-            comp_start_nodes = start_nodes[comp_start_idx : comp_start_idx + component_target_len]
-            comp_end_nodes = end_nodes[comp_start_idx : comp_start_idx + component_target_len]
+            comp_start_idx = comp_idx * int(input_length / self.ensemble_length)
+            comp_end_idx = comp_idx * int(output_length / self.ensemble_length)
+            comp_start_nodes = start_nodes[comp_start_idx : comp_start_idx + component_start_target_len]
+            comp_end_nodes = end_nodes[comp_end_idx : comp_end_idx + component_end_target_len]
             edges = []
             for i in range(routes_per_component):
-                nodes_idx = np.random.randint(0, len(comp_start_nodes))
-                j = comp_start_nodes[nodes_idx]
+                comp_start_nodes_idx = np.random.randint(0, len(comp_start_nodes))
+                comp_end_nodes_idx = np.random.randint(0, len(comp_end_nodes))
+                j = comp_start_nodes[comp_start_nodes_idx]
                 k = 0
-                comp_offset = comp_idx * int(between_len / self.ensemble_length)
-                edges.append((j, j + comp_offset))
+                comp_offset = comp_idx * int(between_length / self.ensemble_length)
                 j += comp_offset
-                k += 1
-                while j < comp_end_nodes[nodes_idx]:
-                    draw = np.random.random()
-                    next_node_offset = int(1 + -np.ceil(np.log2(draw)))
-                    next_node_offset *= 1
-                    edges.append((j, min(j + next_node_offset, comp_end_nodes[nodes_idx])))
+                while j < comp_end_nodes[comp_end_nodes_idx]:
+                    # draw = np.random.random()
+                    # next_node_offset = int(1 + -np.ceil(np.log2(draw)))
+                    next_node_offset = np.random.randint(1, 10)
+                    edges.append((j, min(j + next_node_offset, comp_end_nodes[comp_end_nodes_idx])))
                     j += next_node_offset
                     k += 1
-                    if k == max_route_len:
-                        edges.append((j, comp_end_nodes[nodes_idx]))
+                    if k == max_route_len and j < comp_end_nodes[comp_end_nodes_idx]:
+                        edges.append((j, comp_end_nodes[comp_end_nodes_idx]))
                         break
-            self.edge_indices_list.append(torch.tensor([
+            edge_indices_list.append(torch.tensor([
                 [edges[j][0] for j in range(len(edges))],
                 [edges[j][1] for j in range(len(edges))]
             ]))
@@ -109,37 +163,75 @@ class EnsembleGNNWrapper(ModelWrapper):
 
     @override
     def train(self, x: np.ndarray, epochs):
-        if self.edge_indices_list is not None:
-            data_list = []
-            for i in range(len(x)):
-                kwargs = {}
-                for j in range(self.ensemble_length):
-                    kwargs[f'inp_{j}'] = torch.from_numpy(
-                        np.concatenate([x[i].astype(np.float32), np.zeros((self.nodes_between_length + self.window_length, x[i].shape[1]), dtype=np.float32)]))
-                    kwargs[f'edge_index_{j}'] = self.edge_indices_list[j]
-                data_list.append(EnsembleGNNData(
-                    ensemble_length=self.ensemble_length, **kwargs))
+        data_list = []
+        for i in range(len(x)):
+            kwargs = {}
+            for j in range(self.ensemble_length):
+                kwargs[f'inp_{j}'] = torch.from_numpy(
+                    np.concatenate([x[i].astype(np.float32), np.zeros((self.nodes_between_length + self.num_latent_nodes, x[i].shape[1]), dtype=np.float32)]))
+                kwargs[f'enc_edge_index_{j}'] = self.encoder_edge_indices_list[j]
+                kwargs[f'dec1_edge_index_{j}'] = self.decoder1_edge_indices_list[j]
+                kwargs[f'dec2_edge_index_{j}'] = self.decoder2_edge_indices_list[j]
+            data_list.append(EnsembleGNNData(
+                ensemble_length=self.ensemble_length, **kwargs))
 
-            loader = DataLoader(data_list, batch_size=self.batch_size, shuffle=True, follow_batch=[
-                                f'inp_{i}' for i in range(self.ensemble_length)])
-            optimizer = torch.optim.Adam(
-                self.model.parameters(), lr=0.01, weight_decay=5e-4)
+        loader = DataLoader(data_list, batch_size=self.batch_size, shuffle=True, follow_batch=[
+                            f'inp_{i}' for i in range(self.ensemble_length)])
+        optimizer = torch.optim.Adam(
+            list(self.encoder.parameters()) + list(self.decoder1.parameters()) + list(self.decoder2.parameters()), lr=0.01, weight_decay=5e-4)
 
-            criterion = torch.nn.MSELoss()
-            self.model.train()
-            for epoch in range(epochs):
-                for i, data in enumerate(loader):
-                    data.to(self.device)
-                    optimizer.zero_grad()
-                    out = self.model(data)
-                    out = torch.stack(out, dim=0).sum(dim=0)[self.model.batch_mask[:len(getattr(data, f'inp_0'))]]
-                    # loss = 0
-                    # for j in range(self.ensemble_length):
-                    #     loss += criterion(out[j], getattr(data, f'inp_{j}'))
-                    loss = criterion(out, getattr(data, f'inp_0')[self.model.batch_mask[:len(getattr(data, f'inp_0'))]])
-                    loss.backward()
-                    optimizer.step()
-            self.model.eval()
+        criterion = torch.nn.MSELoss()
+        self.encoder.train()
+        self.decoder1.train()
+        self.decoder2.train()
+        for epoch in range(epochs):
+            for i, data in enumerate(loader):
+                data.to(self.device)
+                optimizer.zero_grad()
+                tmp_mask = torch.zeros((data.inp_0.size(0)))
+                for j in range(data.inp_0.size(0) // self.total_length):
+                    tmp_mask[j * self.total_length : j * self.total_length + self.window_length] = 1
+                input_batch_unpadded = data.inp_0[tmp_mask.bool()]
+                enc_out = self.encoder(data)
+                enc_out = torch.stack(enc_out, dim=0).sum(dim=0)[self.encoder.batch_mask[:enc_out[0].size(0)]]
+                batch_size = enc_out.size(0) // self.num_latent_nodes
+                temp = torch.zeros((batch_size * self.total_length, self.num_latent_node_features))
+                for j in range(batch_size):
+                    temp[j * self.total_length : j * self.total_length + self.num_latent_nodes] = enc_out[j * self.num_latent_nodes : (j+1) * self.num_latent_nodes]
+                for i in range(self.ensemble_length):
+                    setattr(data, f'inp_{i}', temp)
+                dec1_out = self.decoder1(data)
+                dec1_out = torch.stack(dec1_out, dim=0).sum(dim=0)[self.decoder1.batch_mask[:dec1_out[0].size(0)]]
+                dec1_loss = criterion(dec1_out, input_batch_unpadded)
+                
+                dec2_out = self.decoder2(data)
+                dec2_out = torch.stack(dec2_out, dim=0).sum(dim=0)[self.decoder2.batch_mask[:dec2_out[0].size(0)]]
+                dec2_loss = criterion(dec2_out, input_batch_unpadded)
+                
+                temp = torch.zeros((batch_size * self.total_length, self.number_of_channels))
+                for j in range(batch_size):
+                    temp[j * self.total_length : j * self.total_length + self.window_length] = dec1_out[j * self.window_length : (j+1) * self.window_length]
+                for i in range(self.ensemble_length):
+                    setattr(data, f'inp_{i}', temp)
+                out_3 = self.encoder(data)
+                out_3 = torch.stack(out_3, dim=0).sum(dim=0)[self.encoder.batch_mask[:out_3[0].size(0)]]
+                temp = torch.zeros((batch_size * self.total_length, self.num_latent_node_features))
+                for j in range(batch_size):
+                    temp[j * self.total_length : j * self.total_length + self.num_latent_nodes] = enc_out[j * self.num_latent_nodes : (j+1) * self.num_latent_nodes]
+                for i in range(self.ensemble_length):
+                    setattr(data, f'inp_{i}', temp)
+                out_3 = self.decoder2(data)
+                out_3 = torch.stack(out_3, dim=0).sum(dim=0)[self.decoder2.batch_mask[:out_3[0].size(0)]]
+                out_3_loss = criterion(out_3, input_batch_unpadded)
+                
+                loss = (1 / self.epoch) * dec1_loss + (1 / self.epoch) * dec2_loss + (1 - 1 / self.epoch) * out_3_loss
+                loss.backward()
+                optimizer.step()
+            self.epoch += 1
+            print(f'Finished epoch {epoch}')
+        self.encoder.eval()
+        self.decoder1.eval()
+        self.decoder2.eval()
 
     @override
     def retraining(self, training_set):
@@ -149,9 +241,9 @@ class EnsembleGNNWrapper(ModelWrapper):
     @override
     def predict_current(self):
         self.current_feature_vectors = self.publisher.feature_vectors
-        self.current_predictions, self.current_component_predictions = \
+        self.current_predictions = \
             self.predict(self.current_feature_vectors,
-                         return_component_output=True)
+                         return_component_output=False)
 
     @override
     def predict(self, x, return_component_output=False):
@@ -163,27 +255,56 @@ class EnsembleGNNWrapper(ModelWrapper):
             kwargs = {}
             for j in range(self.ensemble_length):
                 kwargs[f'inp_{j}'] = torch.from_numpy(
-                    np.concatenate([x[i].astype(np.float32), np.zeros((self.nodes_between_length + self.window_length, x[i].shape[1]), dtype=np.float32)]))
-                kwargs[f'edge_index_{j}'] = self.edge_indices_list[j]
+                    np.concatenate([x[i].astype(np.float32), np.zeros((self.nodes_between_length + self.num_latent_nodes, x[i].shape[1]), dtype=np.float32)]))
+                kwargs[f'enc_edge_index_{j}'] = self.encoder_edge_indices_list[j]
+                kwargs[f'dec1_edge_index_{j}'] = self.decoder1_edge_indices_list[j]
+                kwargs[f'dec2_edge_index_{j}'] = self.decoder2_edge_indices_list[j]
             data_list.append(EnsembleGNNData(
                 ensemble_length=self.ensemble_length, **kwargs))
 
-        pc = torch.unsqueeze(torch.unsqueeze(
-            self._performance_weights(), -1), -1)
         if return_component_output:
-            component_output = np.zeros(
-                (x_shape[0], self.ensemble_length, *x_shape[1:]))
-            for i, data in enumerate(data_list):
-                out_stacked = torch.stack(self.model(data))
-                out_ensemble = torch.sum(pc * out_stacked, dim=0)
-                component_output[i] = out_stacked[:, self.model.batch_mask[:len(getattr(data, f'inp_0'))]].detach().numpy()
-                output[i] = out_stacked.sum(dim=0)[self.model.batch_mask[:len(getattr(data, f'inp_0'))]].detach().numpy()
-            return output, component_output
+            # pc = torch.unsqueeze(torch.unsqueeze(
+            #     self._performance_weights(), -1), -1)
+            # component_output = np.zeros(
+            #     (x_shape[0], self.ensemble_length, *x_shape[1:]))
+            # for i, data in enumerate(data_list):
+            #     out_stacked = torch.stack(self.model(data))
+            #     out_ensemble = torch.sum(pc * out_stacked, dim=0)
+            #     component_output[i] = out_stacked[:, self.model.batch_mask[:len(getattr(data, f'inp_0'))]].detach().numpy()
+            #     output[i] = out_stacked.sum(dim=0)[self.model.batch_mask[:len(getattr(data, f'inp_0'))]].detach().numpy()
+            # return output, component_output
+            return None
         else:
-            for i, data in enumerate(data_list):
-                out_stacked = torch.stack(self.model(data))
-                out_ensemble = torch.sum(pc * out_stacked, dim=0)
-                output[i] = out_stacked.sum(dim=0)[self.model.batch_mask[:len(getattr(data, f'inp_0'))]].detach().numpy()
+            for data_idx, data in enumerate(data_list):
+                data.to(self.device)
+                enc_out = self.encoder(data)
+                enc_out = torch.stack(enc_out, dim=0).sum(dim=0)[self.encoder.batch_mask[:enc_out[0].size(0)]]
+                batch_size = enc_out.size(0) // self.num_latent_nodes
+                temp = torch.zeros((batch_size * self.total_length, self.num_latent_node_features))
+                for j in range(batch_size):
+                    temp[j * self.total_length : j * self.total_length + self.num_latent_nodes] = enc_out[j * self.num_latent_nodes : (j+1) * self.num_latent_nodes]
+                for i in range(self.ensemble_length):
+                    setattr(data, f'inp_{i}', temp)
+                dec1_out = self.decoder1(data)
+                dec1_out = torch.stack(dec1_out, dim=0).sum(dim=0)[self.decoder1.batch_mask[:dec1_out[0].size(0)]]
+                dec2_out = self.decoder2(data)
+                dec2_out = torch.stack(dec2_out, dim=0).sum(dim=0)[self.decoder2.batch_mask[:dec2_out[0].size(0)]]
+                
+                temp = torch.zeros((batch_size * self.total_length, self.number_of_channels))
+                for j in range(batch_size):
+                    temp[j * self.total_length : j * self.total_length + self.window_length] = dec1_out[j * self.window_length : (j+1) * self.window_length]
+                for i in range(self.ensemble_length):
+                    setattr(data, f'inp_{i}', temp)
+                out_3 = self.encoder(data)
+                out_3 = torch.stack(out_3, dim=0).sum(dim=0)[self.encoder.batch_mask[:out_3[0].size(0)]]
+                temp = torch.zeros((batch_size * self.total_length, self.num_latent_node_features))
+                for j in range(batch_size):
+                    temp[j * self.total_length : j * self.total_length + self.num_latent_nodes] = enc_out[j * self.num_latent_nodes : (j+1) * self.num_latent_nodes]
+                for i in range(self.ensemble_length):
+                    setattr(data, f'inp_{i}', temp)
+                out_3 = self.decoder2(data)
+                out_3 = torch.stack(out_3, dim=0).sum(dim=0)[self.decoder2.batch_mask[:out_3[0].size(0)]]
+                output[data_idx] = out_3.detach().numpy()
             return output
         
     def update_performance_counters_with_anomaly_scores(self, anomaly_score_fn: Callable, anomaly_threshold: float):
@@ -237,43 +358,46 @@ class EnsembleGNNWrapper(ModelWrapper):
 
     @override
     def save_model(self, save_path):
-        torch.save(self.model.state_dict(), save_path)
-        np.savetxt(f'{save_path.rstrip(".h5")}_performance_counters.csv', self.performance_counters, delimiter=',')
+        torch.save(self.encoder.state_dict(), f'{save_path.rstrip(".h5")}_encoder.h5')
+        torch.save(self.decoder1.state_dict(), f'{save_path.rstrip(".h5")}_decoder1.h5')
+        torch.save(self.decoder2.state_dict(), f'{save_path.rstrip(".h5")}_decoder2.h5')
+        # np.savetxt(f'{save_path.rstrip(".h5")}_performance_counters.csv', self.performance_counters, delimiter=',')
 
 
 class EnsembleGNN(torch.nn.Module):
-    def __init__(self, ensemble_length, window_length, num_node_features, inp_length=1000, batch_size=32):
+    def __init__(self, ensemble_length, num_node_features_input, num_node_features_output, input_length, output_length, between_length, edge_idx_base_key='edge_index', num_conv_layers=26, batch_size=32):
         super().__init__()
         self.ensemble_length = ensemble_length
-        self.window_length = window_length
-        self.inp_length = inp_length
-        self.num_node_features = num_node_features
+        self.input_length = input_length
+        self.output_length = output_length
+        self.between_length = between_length
+        self.total_length = input_length + output_length + between_length
+        self.num_node_features = num_node_features_input
+        self.num_latent_node_features = num_node_features_output
+        self.num_conv_layers = num_conv_layers
+        self.edge_idx_base_key = edge_idx_base_key
         self.batch_size = batch_size
-        self.batch_mask = torch.zeros((batch_size * inp_length))
+        self.batch_mask = torch.zeros((batch_size * self.total_length))
         for j in range(batch_size):
-            self.batch_mask[j * inp_length + (inp_length - window_length) : (j+1) * inp_length] = 1
+            self.batch_mask[j * self.total_length + (self.total_length - self.output_length) : (j+1) * self.total_length] = 1
         self.batch_mask = self.batch_mask.bool()
+        
+        node_feature_lengths = np.ceil(np.linspace(num_node_features_input, num_node_features_output, num_conv_layers+1))
         for i in range(ensemble_length):
-            setattr(self, f"conv_{i}_1", GCNConv(num_node_features, 16))
-            setattr(self, f"conv_{i}_2", GCNConv(16, 8))
-            setattr(self, f"conv_{i}_3", GCNConv(8, 4))
-            for j in range(20):
-                setattr(self, f"conv_{i}_{4+j}", GCNConv(4, 4))
-            setattr(self, f"conv_{i}_24", GCNConv(4, 8))
-            setattr(self, f"conv_{i}_25", GCNConv(8, 16))
-            setattr(self, f"conv_{i}_26", GCNConv(16, num_node_features))
+            for j in range(1, self.num_conv_layers+1):
+                setattr(self, f"conv_{i}_{j}", GCNConv(int(node_feature_lengths[j-1]), int(node_feature_lengths[j])))
 
     def forward(self, data):
         out = []
-        for i in range(self.ensemble_length):
+        for i in range(1, self.ensemble_length):
             x, edge_index = getattr(data, f'inp_{i}'), getattr(
-                data, f'edge_index_{i}')
+                data, f'{self.edge_idx_base_key}_{i}')
 
-            for j in range(1, 26):
+            for j in range(1, self.num_conv_layers):
                 x = getattr(self, f"conv_{i}_{j}")(x, edge_index)
                 x = F.relu(x)
                 x = F.dropout(x, training=self.training)
-            out.append(getattr(self, f"conv_{i}_26")(x, edge_index))
+            out.append(getattr(self, f"conv_{i}_{self.num_conv_layers}")(x, edge_index))
 
         return out
 
@@ -281,6 +405,7 @@ class EnsembleGNN(torch.nn.Module):
 class EnsembleGNNData(Data):
     def __inc__(self, key, value, *args, **kwargs):
         for i in range(self.ensemble_length):
-            if key == f'edge_index_{i}':
+            if f'edge_index_{i}' in key:
                 return getattr(self, f'inp_{i}').size(0)
         return super().__inc__(key, value, *args, **kwargs)
+

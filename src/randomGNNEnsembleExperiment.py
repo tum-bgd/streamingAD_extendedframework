@@ -92,25 +92,20 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
         # 'sw_mu_sig',
         'sw_ks',
         # 'ures_mu_sig',
-        'ures_ks',
+        # 'ures_ks',
         # 'ares_al_mu_sig',
-            'ares_al_ks']:
-        ensemble_length = 1
-        model = EnsembleGNN(
-            ensemble_length=ensemble_length,
-            num_node_features=number_of_channels,
-            window_length=data_representation_length,
-            batch_size=32,
-        )
+        # 'ares_al_ks'
+        ]:
+        ensemble_length = 2
         model_wrapper = EnsembleGNNWrapper(
             publisher=data_representation,
             subscribers=[],
             model_id=model_id,
             model_type=model_type,
             window_length=data_representation_length,
+            number_of_channels=number_of_channels,
             ensemble_length=ensemble_length,
-            batch_size=32,
-            model=model,
+            batch_size=batch_size,
             save_paths=save_paths(out_base_path, datetime_this_run, model_id, reservoir_ids=[
                     version], anomaly_score_ids=['anomaly_likelihood'], filename='component_anomaly_scores.csv'),
             debug=DEBUG
@@ -183,8 +178,8 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
             anomaly_likelihood)
         new_entry["nonconformity_score"]['subscribers'].append(
             anomaly_likelihood)
-        anomaly_likelihood.update_at_notify.append((new_entry['object'].update_performance_counters_with_anomaly_scores, (
-            anomaly_likelihood.calculate_anomaly_scores, anomaly_likelihood.threshold)))
+        # anomaly_likelihood.update_at_notify.append((new_entry['object'].update_performance_counters_with_anomaly_scores, (
+        #     anomaly_likelihood.calculate_anomaly_scores, anomaly_likelihood.threshold)))
 
         first_anomaly_scores = np.random.uniform(
             0, 1, size=training_set_length)
@@ -220,7 +215,7 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
 if __name__ == '__main__':
     datetime_this_run = datetime.now().strftime("%Y%m%d_%H%M%S")
     dataset_category = 'multivariate'
-    collection_id = 'Daphnet'
+    collection_id = 'SMD'
     data_folder_path = 'data'
     out_folder_path = f'out'
     for dataset_id in sorted(list(set([x.split('.')[0] for x in 
