@@ -26,8 +26,8 @@ class EnsembleGNNWrapper(ModelWrapper):
         self.model = None
         self.dataset_train = None
         self.window_length = window_length
-        self.num_latent_nodes = 10
-        self.num_latent_node_features = 4
+        self.num_latent_nodes = 20
+        self.num_latent_node_features = 10
         self.number_of_channels = number_of_channels
         self.nodes_between_length = 100
         self.total_length = self.window_length + self.nodes_between_length + self.num_latent_nodes
@@ -120,6 +120,7 @@ class EnsembleGNNWrapper(ModelWrapper):
                 [edges[j][1] for j in range(len(edges))]
             ]))
             
+
     def _sample_edge_indices_by_routes(self, edge_indices_list, input_length, output_length, between_length):
         routes_per_component = 10
         component_start_target_len = 10
@@ -150,6 +151,33 @@ class EnsembleGNNWrapper(ModelWrapper):
                     if k == max_route_len and j < comp_end_nodes[comp_end_nodes_idx]:
                         edges.append((j, comp_end_nodes[comp_end_nodes_idx]))
                         break
+            edge_indices_list.append(torch.tensor([
+                [edges[j][0] for j in range(len(edges))],
+                [edges[j][1] for j in range(len(edges))]
+            ]))
+            
+    def _sample_edge_indices_by_noncausal_routes(self, edge_indices_list, input_length, output_length, between_length):
+        routes_per_component = 10
+        component_start_target_len = 10
+        component_end_target_len = 2
+        max_route_len = 20
+        start_nodes = np.arange(0, input_length)
+        end_nodes = np.arange(input_length + between_length, input_length + between_length + output_length)
+        for comp_idx in range(self.ensemble_length):
+            comp_start_idx = comp_idx * int(input_length / self.ensemble_length)
+            comp_end_idx = comp_idx * int(output_length / self.ensemble_length)
+            comp_start_nodes = start_nodes[comp_start_idx : comp_start_idx + component_start_target_len]
+            comp_end_nodes = end_nodes[comp_end_idx : comp_end_idx + component_end_target_len]
+            edges = []
+            for i in range(routes_per_component):
+                comp_start_nodes_idx = np.random.randint(0, len(comp_start_nodes))
+                comp_end_nodes_idx = np.random.randint(0, len(comp_end_nodes))
+                j = comp_start_nodes[comp_start_nodes_idx]
+                for k in range(max_route_len-1):
+                    next_node = np.random.randint(0, comp_end_nodes[comp_end_nodes_idx]-1)
+                    edges.append((j, next_node))
+                    j = next_node
+                edges.append((j, comp_end_nodes[comp_end_nodes_idx]))
             edge_indices_list.append(torch.tensor([
                 [edges[j][0] for j in range(len(edges))],
                 [edges[j][1] for j in range(len(edges))]
@@ -224,8 +252,10 @@ class EnsembleGNNWrapper(ModelWrapper):
                 out_3 = torch.stack(out_3, dim=0).sum(dim=0)[self.decoder2.batch_mask[:out_3[0].size(0)]]
                 out_3_loss = criterion(out_3, input_batch_unpadded)
                 
-                loss = (1 / self.epoch) * dec1_loss + (1 / self.epoch) * dec2_loss + (1 - 1 / self.epoch) * out_3_loss
-                loss.backward()
+                loss1 = (1 / self.epoch) * dec1_loss + (1 - 1 / self.epoch) * out_3_loss
+                loss2 = (1 / self.epoch) * dec2_loss - (1 - 1 / self.epoch) * out_3_loss
+                loss1.backward()
+                loss2.backward()
                 optimizer.step()
             self.epoch += 1
             print(f'Finished epoch {epoch}')

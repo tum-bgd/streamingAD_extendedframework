@@ -14,6 +14,7 @@ from training_set_analysis.muSigmaChange import MuSigmaChange
 from training_set_analysis.ksTest import KsTest
 from nonconformity_scores.nonconformity_wrapper import calc_nonconformity_scores, NonConformityWrapper
 from anomaly_scores.anomalyLikelihood import AnomalyLikelihood
+from anomaly_scores.averageOfWindow import AverageOfWindow
 from utils import save_paths
 from models.gnn_ensembles import EnsembleGNN, EnsembleGNNWrapper
 
@@ -85,6 +86,8 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
         sw_helper(outer_window=ts_window_publisher.get_window(),
                   feature_vector_length=data_representation_length,
                   training_set_length=training_set_length)
+    training_dataset = np.stack([dataset_train[i:i+data_representation_length]
+                for i in range(len(dataset_train) - data_representation_length + 1)], axis=0)
 
     # 4) Ensemble GNN + training set update methods + KS + Anomaly Likelihood
     model_id, model_type = 'ensemble_gnn', 'reconstruction'
@@ -111,7 +114,7 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
             debug=DEBUG
         )
         print(f'Training of ensemble_gnn model for version {version}')
-        model_wrapper.train(x=first_training_set, epochs=1)
+        model_wrapper.train(x=training_dataset, epochs=5)
         if not os.path.exists(initial_weights_path):
             os.makedirs(initial_weights_path)
         model_wrapper.save_model(
@@ -126,7 +129,7 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
                 publisher=new_entry['object'],
                 subscribers=[],
                 save_paths=save_paths(out_base_path, datetime_this_run, model_id, reservoir_ids=[
-                    version], anomaly_score_ids=['anomaly_likelihood'], filename='nonconformity_scores.csv'),
+                    version], anomaly_score_ids=['anomaly_likelihood', 'avg_of_window'], filename='nonconformity_scores.csv'),
                 measure='cosine_sim',
                 debug=DEBUG),
             "subscribers": []
@@ -160,24 +163,38 @@ def main(data_folder_path: str, out_folder_path: str, dataset_category: str, col
         training_set_update_method.add_subscriber(ks_analysis)
         variables_data_rep['training_set_update_methods'][-1]['subscribers'].append(
             ks_analysis)
+        first_nonconformity_scores = calc_nonconformity_scores(
+                first_training_set, new_entry['object'].predict(first_training_set), measure='cosine_sim')
         anomaly_likelihood = AnomalyLikelihood(
             publisher=new_entry["nonconformity_score"]['object'],
             ts_window_publisher=ts_window_publisher,
             subscribers=[],
             save_paths=save_paths(out_base_path, datetime_this_run, model_id, reservoir_ids=[
                 version], anomaly_score_ids=['anomaly_likelihood']),
-            initial_nonconformity_scores=calc_nonconformity_scores(
-                first_training_set, new_entry['object'].predict(first_training_set), measure='cosine_sim'),
+            initial_nonconformity_scores=first_nonconformity_scores,
             short_term_length=ANOMALY_SCORE_LENGTH//5,
             long_term_length=ANOMALY_SCORE_LENGTH,
             update_at_notify=[],
             threshold=0.6,
             debug=DEBUG
         )
+        average_of_window = AverageOfWindow(
+            publisher=new_entry["nonconformity_score"]['object'],
+            ts_window_publisher=ts_window_publisher,
+            subscribers=[],
+            save_paths=save_paths(out_base_path, datetime_this_run, model_id, reservoir_ids=[
+                version], anomaly_score_ids=['avg_of_window']),
+            initial_nonconformity_scores=first_nonconformity_scores,
+            window_length=ANOMALY_SCORE_LENGTH,
+            debug=DEBUG)
         new_entry["nonconformity_score"]['object'].add_subscriber(
             anomaly_likelihood)
         new_entry["nonconformity_score"]['subscribers'].append(
             anomaly_likelihood)
+        new_entry["nonconformity_score"]['object'].add_subscriber(
+            average_of_window)
+        new_entry["nonconformity_score"]['subscribers'].append(
+            average_of_window)
         # anomaly_likelihood.update_at_notify.append((new_entry['object'].update_performance_counters_with_anomaly_scores, (
         #     anomaly_likelihood.calculate_anomaly_scores, anomaly_likelihood.threshold)))
 
